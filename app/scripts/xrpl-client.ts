@@ -1,0 +1,143 @@
+import xrpl from 'xrpl';
+
+export default class XRPLClient {
+    constructor() {
+        this.client = new xrpl.Client("wss://s.altnet.rippletest.net:51233/", {
+            connectionTimeout: 20000,
+            requestTimeout: 30000
+        });
+        this.wallets = [];
+        this.connect();
+    }
+
+    async connect() {
+        try {
+            await this.client.connect();
+            console.log('Connected to XRPL');
+        } catch (error) {
+            console.error('Failed to connect to XRPL:', error.message);
+            throw error;
+        }
+    }
+
+    async disconnect() {
+        await this.client.disconnect();
+        console.log('Disconnected from XRPL');
+    }
+
+    async createAccount(userName) {
+        try {
+            const wallet = await this.client.fundWallet();
+
+            const walletObject = {
+                address: wallet.wallet.classicAddress,
+                publicKey: wallet.wallet.publicKey,
+                privateKey: wallet.wallet.privateKey,
+                seed: wallet.wallet.seed,
+                balance: wallet.balance,
+                userName: userName,
+                network: 'xrp-testnet',
+                needsFunding: true
+            }
+
+            this.wallets.push(walletObject);
+            console.log(`Generated new account: ${walletObject.address}`);
+
+            return walletObject;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    async getAllAccounts() {
+        return this.wallets;
+    }
+
+    async removeAccount(address) {
+        this.wallets = this.wallets.filter(wallet => wallet.address !== address);
+    }
+
+    async checkAndUpdateFunding(address) {
+        try {
+            const balance = await this.getBalance(address);
+            const walletIndex = this.wallets.findIndex(wallet => wallet.address === address);
+
+            if (walletIndex !== -1) {
+                this.wallets[walletIndex].balance = xrpl.dropsToXrp(balance);
+                this.wallets[walletIndex].needsFunding = parseInt(balance) === 0;
+
+                if (parseInt(balance) > 0) {
+                    console.log(`Account ${address} is funded with ${xrpl.dropsToXrp(balance)} XRP`);
+                }
+            }
+
+            return {
+                address,
+                balance: xrpl.dropsToXrp(balance),
+                isFunded: parseInt(balance) > 0
+            };
+        } catch (error) {
+            console.error(`Failed to check funding for ${address}:`, error);
+            return {
+                address,
+                balance: '0',
+                isFunded: false
+            };
+        }
+    }
+
+    async getAccountInfo(address) {
+        try {
+            const accountInfo = await this.client.request({
+                command: "account_info",
+                account: address,
+            });
+            return accountInfo;
+        } catch (error) {
+            console.error(`Failed to get account info for ${address}:`, error);
+            throw error;
+        }
+    }
+
+    async getBalance(address) {
+        try {
+            const accountInfo = await this.getAccountInfo(address);
+            return accountInfo.result.account_data.Balance;
+        } catch (error) {
+            console.error(`Failed to get balance for ${address}:`, error);
+            throw error;
+        }
+    }
+
+    async getAccountHooks(address) {
+        try {
+            const response = await this.client.request({
+                command: "account_info",
+                account: address,
+                ledger_index: "validated"
+            });
+
+            return response.result.account_data.Hooks || [];
+        } catch (error) {
+            console.error(`Failed to get hooks for ${address}:`, error);
+            throw error;
+        }
+    }
+
+    async submitTransaction(transaction, wallet) {
+        try {
+            if (!this.client.isConnected()) {
+                await this.client.connect();
+            }
+
+            const prepared = await this.client.autofill(transaction);
+            const signed = wallet.sign(prepared);
+            const result = await this.client.submitAndWait(signed.tx_blob);
+
+            return result;
+        } catch (error) {
+            console.error('Transaction failed:', error);
+            throw error;
+        }
+    }
+}
