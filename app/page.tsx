@@ -115,132 +115,28 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen p-8 bg-gray-100">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">XRPL Loan Contract Test</h1>
-        
-        {status && (
-          <div className="mb-4 p-4 bg-blue-100 text-blue-700 rounded">
-            {status}
-          </div>
-        )}
-        {error && (
-          <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
-            {error}
-          </div>
-        )}
-
-        <div className="mb-8 p-6 bg-white rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Test Accounts</h2>
-          <button
-            onClick={createTestAccounts}
-            disabled={loading || !!borrower}
-            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-          >
-            {loading ? 'Creating...' : 'Create Test Accounts'}
-          </button>
-          
-          {borrower && lender && (
-            <div className="mt-4 space-y-2">
-              <p><strong>Borrower:</strong> {borrower.address}</p>
-              <p><strong>Lender:</strong> {lender.address}</p>
-            </div>
-          )}
+    <>
+      {/* Header with tabs */}
+      <header className="sticky top-0 z-20 bg-white shadow mb-8">
+        <div className="max-w-4xl mx-auto flex items-center justify-between py-4 px-4">
+          <a href="/" className="text-2xl font-bold text-blue-700 tracking-tight hover:underline">TrustLend</a>
+          <nav className="flex space-x-4">
+            <a href="/peer-to-peer" className="px-4 py-2 rounded font-medium text-gray-700 hover:bg-gray-100">Peer-to-Peer Loans</a>
+            <a href="/trustlend-loans" className="px-4 py-2 rounded font-medium text-blue-700 bg-blue-100">TrustLend Loans</a>
+          </nav>
         </div>
-
-        {borrower && lender && (
-          <div className="mb-8 p-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Create Loan Contract</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Principal Amount (XRP)</label>
-                <input
-                  type="number"
-                  value={principalAmount}
-                  onChange={(e) => setPrincipalAmount(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  min="1"
-                  step="1"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Interest Rate (%)</label>
-                <input
-                  type="number"
-                  value={interestRate}
-                  onChange={(e) => setInterestRate(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  min="0"
-                  step="0.1"
-                />
-              </div>
-
-              <div className="p-4 bg-gray-50 rounded">
-                <p className="text-sm text-gray-600">
-                  Total Repayment: {calculateTotalRepayment(parseFloat(principalAmount), parseFloat(interestRate))} XRP
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Duration (seconds)</label>
-                <input
-                  type="number"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  min="10"
-                  step="1"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Loan Terms</label>
-                <textarea
-                  value={terms}
-                  onChange={(e) => setTerms(e.target.value)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Enter loan terms..."
-                />
-              </div>
-              
-              <button
-                onClick={createLoan}
-                disabled={loading}
-                className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
-              >
-                {loading ? 'Creating Loan...' : 'Create Loan Contract'}
-              </button>
-            </div>
+      </header>
+      {/* Main content for Home page */}
+      <main className="min-h-screen p-8 bg-gray-100">
+        <div className="max-w-4xl mx-auto text-center mt-24">
+          <h1 className="text-4xl font-bold mb-4 text-blue-700">Welcome to TrustLend</h1>
+          <p className="text-lg text-gray-700 mb-8">A decentralized platform for creating and managing loans on the XRP Ledger.</p>
+          <div className="flex justify-center space-x-4">
+            <a href="/peer-to-peer" className="px-6 py-3 bg-gray-200 rounded text-lg font-medium hover:bg-gray-300">Peer-to-Peer Loans</a>
+            <a href="/trustlend-loans" className="px-6 py-3 bg-blue-500 text-white rounded text-lg font-medium hover:bg-blue-600">TrustLend Loans</a>
           </div>
-        )}
-
-        {loans.length > 0 && (
-          <div className="p-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Active Loans</h2>
-            <div className="space-y-4">
-              {loans.map((loan) => (
-                <div key={loan.id} className="p-4 border rounded">
-                  <p><strong>Loan ID:</strong> {loan.id}</p>
-                  <p><strong>Principal:</strong> {loan.principalAmount} XRP</p>
-                  <p><strong>Interest Rate:</strong> {loan.interestRate}%</p>
-                  <p><strong>Total Repayment:</strong> {loan.totalRepaymentAmount} XRP</p>
-                  <p><strong>Status:</strong> {loan.status}</p>
-                  <p><strong>Repayment Due:</strong> {new Date(loan.executeAt).toLocaleString()}</p>
-                  {loan.terms && <p><strong>Terms:</strong> {loan.terms}</p>}
-                  {loan.status === 'repaid' && loan.repaidAt && (
-                    <p><strong>Repaid At:</strong> {new Date(loan.repaidAt).toLocaleString()}</p>
-                  )}
-                  {loan.status === 'defaulted' && (
-                    <p className="text-red-600"><strong>Status:</strong> Defaulted</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </main>
+        </div>
+      </main>
+    </>
   );
 }
