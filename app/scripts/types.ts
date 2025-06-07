@@ -1,90 +1,56 @@
-import { Client, Wallet, TransactionMetadata } from 'xrpl';
-
 export interface XRPLWallet {
-    address: string;
-    publicKey: string;
-    privateKey: string;
-    seed: string;
-    balance: string;
-    userName: string;
-    network: string;
-    needsFunding: boolean;
+  address: string;
+  seed: string;  
+  userName: string;
 }
 
 export interface LoanAgreement {
-    id: string;
-    borrower: string;
-    lender: string;
-    principalAmount: number;
-    interestRate: number;
-    durationSeconds: number;
-    createdAt: number;
-    executeAt: number;
-    terms: string;
-    status: 'active' | 'repaid' | 'defaulted' | 'cancelled';
-    contractAddress: string;
-    contractSeed: string;
-    repaidAt?: number;
-    repaymentTxHash?: string;
-    cancelledAt?: number;
-    totalRepaymentAmount: number;
+  id: string;
+  borrowerAddress: string;
+  lenderAddress: string;
+  principalAmount: number;
+  interestRate: number;
+  totalRepaymentAmount: number;
+  duration: number; // in seconds
+  executeAt: number; // Unix timestamp when repayment is due
+  createdAt: number; // Unix timestamp when loan was created
+  status: 'active' | 'repaid' | 'defaulted';
+  terms: string;
+  repaidAt?: number; // Unix timestamp when repaid
+  txHash?: string; // Transaction hash for loan creation
+  hookAccountId?: string; // Hook account for automatic repayment
 }
 
-export interface TransactionResult {
-    success: boolean;
-    error?: string;
-    contractId?: string;
-    contractAddress?: string;
-    transactionHash?: string;
-    agreement?: LoanAgreement;
-    repaymentTxHash?: string;
-    amountRepaid?: number;
-    refundTxHash?: string;
+export interface LoanCreationResult {
+  success: boolean;
+  error?: string;
+  agreement?: LoanAgreement;
+  contractId?: string;
+  txHash?: string;
+  hookAccountId?: string;
 }
 
-export interface XRPLClientInterface {
-    client: Client;
-    wallets: XRPLWallet[];
-    connect(): Promise<void>;
-    disconnect(): Promise<void>;
-    createAccount(userName: string): Promise<XRPLWallet>;
-    getAllAccounts(): Promise<XRPLWallet[]>;
-    removeAccount(address: string): Promise<void>;
-    checkAndUpdateFunding(address: string): Promise<{
-        address: string;
-        balance: string;
-        isFunded: boolean;
-    }>;
-    getAccountInfo(address: string): Promise<any>;
-    getBalance(address: string): Promise<string>;
-    getAccountHooks(address: string): Promise<any[]>;
-    submitTransaction(transaction: any, wallet: Wallet): Promise<{
-        result: {
-            meta: TransactionMetadata;
-            hash: string;
-        };
-    }>;
+export interface FundingStatus {
+  balance: string;
+  isFunded: boolean;
 }
 
-export interface XRPLoanDeployerInterface {
-    client: Client;
-    contracts: Map<string, LoanAgreement>;
-    connect(): Promise<void>;
-    disconnect(): Promise<void>;
-    generateContractWallet(): Promise<Wallet>;
-    deployLoanContract(
-        borrowerWallet: Wallet,
-        borrowerAddress: string,
-        lenderAddress: string,
-        principalAmount: number,
-        interestRate: number,
-        durationSeconds: number,
-        loanTerms?: string
-    ): Promise<TransactionResult>;
-    fundContract(lenderWallet: Wallet, contractAddress: string, amountXRP: number): Promise<string>;
-    scheduleRepayment(contractId: string, borrowerWallet: Wallet, contractWallet: Wallet): void;
-    executeRepayment(contractId: string, borrowerWallet: Wallet, contractWallet: Wallet): Promise<TransactionResult>;
-    getContract(contractId: string): LoanAgreement | undefined;
-    listContracts(): LoanAgreement[];
-    cancelContract(contractId: string, borrowerWallet: Wallet): Promise<TransactionResult>;
+export interface AutoLoanHook {
+  hookAccountId: string;
+  borrowerAddress: string;
+  lenderAddress: string;
+  repaymentAmount: number;
+  executeAt: number;
+  isActive: boolean;
+}
+
+export interface HookTransaction {
+  Account: string;
+  TransactionType: string;
+  Destination?: string;
+  Amount?: string;
+  Sequence?: number;
+  Fee?: string;
+  Flags?: number;
+  LastLedgerSequence?: number;
 } 

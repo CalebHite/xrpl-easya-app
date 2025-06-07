@@ -1,158 +1,179 @@
-import { Client, Wallet, TransactionMetadata } from 'xrpl';
-import { XRPLWallet, XRPLClientInterface } from './types';
+import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
+import { XRPLWallet, FundingStatus } from './types';
 
-export default class XRPLClient implements XRPLClientInterface {
-    client: Client;
-    wallets: XRPLWallet[];
+export default class XRPLClient {
+  private client: Client;
+  private isConnected: boolean = false;
 
-    constructor() {
-        this.client = new Client("wss://s.altnet.rippletest.net:51233/", {
-            connectionTimeout: 20000,
-            requestTimeout: 30000
-        });
-        this.wallets = [];
-        this.connect();
+  constructor() {
+    // Using testnet for development
+    this.client = new Client('wss://s.altnet.rippletest.net:51233');
+  }
+
+  async connect(): Promise<void> {
+    if (!this.isConnected) {
+      await this.client.connect();
+      this.isConnected = true;
+      console.log('Connected to XRPL Testnet');
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    if (this.isConnected) {
+      await this.client.disconnect();
+      this.isConnected = false;
+      console.log('Disconnected from XRPL');
+    }
+  }
+
+  async createAccount(userName: string): Promise<XRPLWallet> {
+    if (!this.isConnected) {
+      throw new Error('Client not connected');
     }
 
-    async connect(): Promise<void> {
-        try {
-            await this.client.connect();
-            console.log('Connected to XRPL');
-        } catch (error) {
-            if (error instanceof Error) {
-                console.error('Failed to connect to XRPL:', error.message);
-            }
-            throw error;
+    const wallet = Wallet.generate();
+    const account: XRPLWallet = {
+      address: wallet.address,
+      seed: wallet.seed!,
+      userName: userName
+    };
+
+    console.log(`Created account for ${userName}: ${account.address}`);
+    
+    // Fund the account using the testnet faucet with retry logic
+    await this.ensureAccountFunding(wallet, 1000); // Target 1000 XRP funding
+
+    return account;
+  }
+
+  private async ensureAccountFunding(wallet: Wallet, targetAmount: number = 1000): Promise<void> {
+    const maxAttempts = 5;
+    let attempts = 0;
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`Funding attempt ${attempts}/${maxAttempts} for ${wallet.address}`);
+      
+      try {
+        // Try to fund using the testnet faucet
+        await this.client.fundWallet(wallet);
+        
+        // Wait a moment for the transaction to be processed
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Check if funding was successful
+        const fundingStatus = await this.checkAndUpdateFunding(wallet.address);
+        const balance = parseFloat(fundingStatus.balance);
+        
+        console.log(`Balance after funding attempt ${attempts}: ${balance} XRP`);
+        
+        if (balance >= 10) { // Consider successful if >= 10 XRP
+          console.log(`Account ${wallet.address} successfully funded with ${balance} XRP`);
+          return;
         }
-    }
-
-    async disconnect(): Promise<void> {
-        await this.client.disconnect();
-        console.log('Disconnected from XRPL');
-    }
-
-    async createAccount(userName: string): Promise<XRPLWallet> {
-        try {
-            const wallet = await this.client.fundWallet();
-
-            const walletObject: XRPLWallet = {
-                address: wallet.wallet.classicAddress,
-                publicKey: wallet.wallet.publicKey,
-                privateKey: wallet.wallet.privateKey,
-                seed: wallet.wallet.seed,
-                balance: wallet.balance,
-                userName: userName,
-                network: 'xrp-testnet',
-                needsFunding: true
-            };
-
-            this.wallets.push(walletObject);
-            console.log(`Generated new account: ${walletObject.address}`);
-
-            return walletObject;
-        } catch (error) {
-            throw error;
+        
+        if (attempts < maxAttempts) {
+          console.log(`Insufficient funding (${balance} XRP), retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait before retry
         }
-    }
-
-    async getAllAccounts(): Promise<XRPLWallet[]> {
-        return this.wallets;
-    }
-
-    async removeAccount(address: string): Promise<void> {
-        this.wallets = this.wallets.filter(wallet => wallet.address !== address);
-    }
-
-    async checkAndUpdateFunding(address: string): Promise<{
-        address: string;
-        balance: string;
-        isFunded: boolean;
-    }> {
-        try {
-            const balance = await this.getBalance(address);
-            const walletIndex = this.wallets.findIndex(wallet => wallet.address === address);
-
-            if (walletIndex !== -1) {
-                this.wallets[walletIndex].balance = Client.dropsToXrp(balance);
-                this.wallets[walletIndex].needsFunding = parseInt(balance) === 0;
-
-                if (parseInt(balance) > 0) {
-                    console.log(`Account ${address} is funded with ${Client.dropsToXrp(balance)} XRP`);
-                }
-            }
-
-            return {
-                address,
-                balance: Client.dropsToXrp(balance),
-                isFunded: parseInt(balance) > 0
-            };
-        } catch (error) {
-            console.error(`Failed to check funding for ${address}:`, error);
-            return {
-                address,
-                balance: '0',
-                isFunded: false
-            };
+        
+      } catch (error) {
+        console.log(`Funding attempt ${attempts} failed:`, error);
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait before retry
         }
+      }
+    }
+    
+    // Final check after all attempts
+    const finalStatus = await this.checkAndUpdateFunding(wallet.address);
+    const finalBalance = parseFloat(finalStatus.balance);
+    
+    if (finalBalance < 10) {
+      console.warn(`Warning: Account ${wallet.address} may be underfunded (${finalBalance} XRP)`);
+    }
+  }
+
+  async checkAndUpdateFunding(address: string): Promise<FundingStatus> {
+    if (!this.isConnected) {
+      throw new Error('Client not connected');
     }
 
-    async getAccountInfo(address: string): Promise<any> {
-        try {
-            const accountInfo = await this.client.request({
-                command: "account_info",
-                account: address,
-            });
-            return accountInfo;
-        } catch (error) {
-            console.error(`Failed to get account info for ${address}:`, error);
-            throw error;
-        }
-    }
+    try {
+      const response = await this.client.request({
+        command: 'account_info',
+        account: address,
+        ledger_index: 'validated'
+      });
 
-    async getBalance(address: string): Promise<string> {
-        try {
-            const accountInfo = await this.getAccountInfo(address);
-            return accountInfo.result.account_data.Balance;
-        } catch (error) {
-            console.error(`Failed to get balance for ${address}:`, error);
-            throw error;
-        }
-    }
+      const balance = dropsToXrp(response.result.account_data.Balance);
+      const isFunded = parseFloat(balance) >= 10; // Consider funded if >= 10 XRP
 
-    async getAccountHooks(address: string): Promise<any[]> {
-        try {
-            const response = await this.client.request({
-                command: "account_info",
-                account: address,
-                ledger_index: "validated"
-            });
-
-            return response.result.account_data.Hooks || [];
-        } catch (error) {
-            console.error(`Failed to get hooks for ${address}:`, error);
-            throw error;
-        }
-    }
-
-    async submitTransaction(transaction: any, wallet: Wallet): Promise<{
-        result: {
-            meta: TransactionMetadata;
-            hash: string;
+      return {
+        balance: balance,
+        isFunded: isFunded
+      };
+    } catch (error: any) {
+      if (error?.data?.error === 'actNotFound') {
+        return {
+          balance: '0',
+          isFunded: false
         };
-    }> {
-        try {
-            if (!this.client.isConnected()) {
-                await this.client.connect();
-            }
-
-            const prepared = await this.client.autofill(transaction);
-            const signed = wallet.sign(prepared);
-            const result = await this.client.submitAndWait(signed.tx_blob);
-
-            return result;
-        } catch (error) {
-            console.error('Transaction failed:', error);
-            throw error;
-        }
+      }
+      throw error;
     }
-}
+  }
+
+  async getAccountBalance(address: string): Promise<string> {
+    const fundingStatus = await this.checkAndUpdateFunding(address);
+    return fundingStatus.balance;
+  }
+
+  async submitTransaction(transaction: any): Promise<any> {
+    if (!this.isConnected) {
+      throw new Error('Client not connected');
+    }
+
+    const prepared = await this.client.autofill(transaction);
+    const signed = Wallet.fromSeed(transaction.wallet.seed).sign(prepared);
+    const result = await this.client.submitAndWait(signed.tx_blob);
+    
+    return result;
+  }
+
+  async sendPayment(fromWallet: Wallet, toAddress: string, amount: string): Promise<any> {
+    if (!this.isConnected) {
+      throw new Error('Client not connected');
+    }
+
+    const payment = {
+      TransactionType: 'Payment' as const,
+      Account: fromWallet.address,
+      Destination: toAddress,
+      Amount: xrpToDrops(amount)
+    };
+
+    const prepared = await this.client.autofill(payment);
+    const signed = fromWallet.sign(prepared);
+    const result = await this.client.submitAndWait(signed.tx_blob);
+    
+    return result;
+  }
+
+  async getLedgerIndex(): Promise<number> {
+    if (!this.isConnected) {
+      throw new Error('Client not connected');
+    }
+
+    const response = await this.client.request({
+      command: 'ledger',
+      ledger_index: 'validated'
+    });
+
+    return response.result.ledger_index;
+  }
+
+  getClient(): Client {
+    return this.client;
+  }
+} 

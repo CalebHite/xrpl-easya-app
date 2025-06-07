@@ -68,9 +68,9 @@ export default function Home() {
         }
       }
 
-      setStatus('Test accounts funded successfully!');
+      setStatus('Test account funded successfully!');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create test accounts');
+      setError(err instanceof Error ? err.message : 'Failed to create test account');
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      const loanFactory = createLoanFactory();
+      const loanFactory = createLoanFactory(xrplClient);
       const borrowerWallet = Wallet.fromSeed(borrower.seed);
       
       const result = await loanFactory.createLoan(
