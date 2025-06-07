@@ -1,8 +1,12 @@
-import xrpl from 'xrpl';
+import { Client, Wallet, TransactionMetadata } from 'xrpl';
+import { XRPLWallet, XRPLClientInterface } from './types';
 
-export default class XRPLClient {
+export default class XRPLClient implements XRPLClientInterface {
+    client: Client;
+    wallets: XRPLWallet[];
+
     constructor() {
-        this.client = new xrpl.Client("wss://s.altnet.rippletest.net:51233/", {
+        this.client = new Client("wss://s.altnet.rippletest.net:51233/", {
             connectionTimeout: 20000,
             requestTimeout: 30000
         });
@@ -10,26 +14,28 @@ export default class XRPLClient {
         this.connect();
     }
 
-    async connect() {
+    async connect(): Promise<void> {
         try {
             await this.client.connect();
             console.log('Connected to XRPL');
         } catch (error) {
-            console.error('Failed to connect to XRPL:', error.message);
+            if (error instanceof Error) {
+                console.error('Failed to connect to XRPL:', error.message);
+            }
             throw error;
         }
     }
 
-    async disconnect() {
+    async disconnect(): Promise<void> {
         await this.client.disconnect();
         console.log('Disconnected from XRPL');
     }
 
-    async createAccount(userName) {
+    async createAccount(userName: string): Promise<XRPLWallet> {
         try {
             const wallet = await this.client.fundWallet();
 
-            const walletObject = {
+            const walletObject: XRPLWallet = {
                 address: wallet.wallet.classicAddress,
                 publicKey: wallet.wallet.publicKey,
                 privateKey: wallet.wallet.privateKey,
@@ -38,7 +44,7 @@ export default class XRPLClient {
                 userName: userName,
                 network: 'xrp-testnet',
                 needsFunding: true
-            }
+            };
 
             this.wallets.push(walletObject);
             console.log(`Generated new account: ${walletObject.address}`);
@@ -49,31 +55,35 @@ export default class XRPLClient {
         }
     }
 
-    async getAllAccounts() {
+    async getAllAccounts(): Promise<XRPLWallet[]> {
         return this.wallets;
     }
 
-    async removeAccount(address) {
+    async removeAccount(address: string): Promise<void> {
         this.wallets = this.wallets.filter(wallet => wallet.address !== address);
     }
 
-    async checkAndUpdateFunding(address) {
+    async checkAndUpdateFunding(address: string): Promise<{
+        address: string;
+        balance: string;
+        isFunded: boolean;
+    }> {
         try {
             const balance = await this.getBalance(address);
             const walletIndex = this.wallets.findIndex(wallet => wallet.address === address);
 
             if (walletIndex !== -1) {
-                this.wallets[walletIndex].balance = xrpl.dropsToXrp(balance);
+                this.wallets[walletIndex].balance = Client.dropsToXrp(balance);
                 this.wallets[walletIndex].needsFunding = parseInt(balance) === 0;
 
                 if (parseInt(balance) > 0) {
-                    console.log(`Account ${address} is funded with ${xrpl.dropsToXrp(balance)} XRP`);
+                    console.log(`Account ${address} is funded with ${Client.dropsToXrp(balance)} XRP`);
                 }
             }
 
             return {
                 address,
-                balance: xrpl.dropsToXrp(balance),
+                balance: Client.dropsToXrp(balance),
                 isFunded: parseInt(balance) > 0
             };
         } catch (error) {
@@ -86,7 +96,7 @@ export default class XRPLClient {
         }
     }
 
-    async getAccountInfo(address) {
+    async getAccountInfo(address: string): Promise<any> {
         try {
             const accountInfo = await this.client.request({
                 command: "account_info",
@@ -99,7 +109,7 @@ export default class XRPLClient {
         }
     }
 
-    async getBalance(address) {
+    async getBalance(address: string): Promise<string> {
         try {
             const accountInfo = await this.getAccountInfo(address);
             return accountInfo.result.account_data.Balance;
@@ -109,7 +119,7 @@ export default class XRPLClient {
         }
     }
 
-    async getAccountHooks(address) {
+    async getAccountHooks(address: string): Promise<any[]> {
         try {
             const response = await this.client.request({
                 command: "account_info",
@@ -124,7 +134,12 @@ export default class XRPLClient {
         }
     }
 
-    async submitTransaction(transaction, wallet) {
+    async submitTransaction(transaction: any, wallet: Wallet): Promise<{
+        result: {
+            meta: TransactionMetadata;
+            hash: string;
+        };
+    }> {
         try {
             if (!this.client.isConnected()) {
                 await this.client.connect();
