@@ -16,6 +16,11 @@ interface AccountStatus {
 
 export default function TrustLendLoansPage() {
   const [xrplClient, setXrplClient] = useState<XRPLClient | null>(null);
+  const [borrower, setBorrower] = useState<XRPLWallet | null>(null);
+  const [lender, setLender] = useState<XRPLWallet | null>(null);
+  const [principalAmount, setPrincipalAmount] = useState<string>('');
+  const [interestRate, setInterestRate] = useState<string>('');
+  const [duration, setDuration] = useState<string>('');
   const [borrowerStatus, setBorrowerStatus] = useState<AccountStatus>({
     account: null,
     balance: '0',
@@ -44,6 +49,7 @@ export default function TrustLendLoansPage() {
     setDebugLogs(prev => [...prev.slice(-9), logMessage]);
     console.log(logMessage);
   };
+  const bankAddress = 'rBpUwvkJfrnRrwGcbLk5TwuAFd8SbxmD4M'; // Permanent XRP address for the bank/lender
 
   useEffect(() => {
     const initClient = async () => {
@@ -306,6 +312,8 @@ export default function TrustLendLoansPage() {
           {/* Account Creation */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Create Test Accounts</h2>
+            <h2 className="text-xl font-semibold mb-4">Test Accounts</h2>
+            <p className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded"><strong>Bank/Lender Address:</strong> {bankAddress}</p>
             <button
               onClick={createTestAccounts}
               disabled={loading || bothAccountsReady}
@@ -323,6 +331,9 @@ export default function TrustLendLoansPage() {
                 >
                   Refresh Status
                 </button>
+            {borrower && (
+              <div className="mt-4 space-y-2">
+                <p><strong>Borrower:</strong> {borrower.address}</p>
               </div>
             )}
           </div>
@@ -378,9 +389,10 @@ export default function TrustLendLoansPage() {
                     type="number"
                     value={principalAmount}
                     onChange={(e) => setPrincipalAmount(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     min="1"
                     step="1"
+                    placeholder="Enter principal amount in XRP"
                   />
                 </div>
                 <div>
@@ -389,9 +401,10 @@ export default function TrustLendLoansPage() {
                     type="number"
                     value={interestRate}
                     onChange={(e) => setInterestRate(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     min="0"
                     step="0.1"
+                    placeholder="Enter interest rate (%)"
                   />
                 </div>
                 <div className="p-4 bg-gray-50 rounded">
@@ -419,7 +432,10 @@ export default function TrustLendLoansPage() {
                     onChange={(e) => setDuration(e.target.value)}
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     min="1"
+                    className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    min="10"
                     step="1"
+                    placeholder="Enter duration in seconds"
                   />
                 </div>
                 <div>
@@ -427,7 +443,7 @@ export default function TrustLendLoansPage() {
                   <textarea
                     value={terms}
                     onChange={(e) => setTerms(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     rows={3}
                     placeholder="Enter loan terms..."
                   />
