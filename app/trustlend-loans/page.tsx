@@ -16,11 +16,6 @@ interface AccountStatus {
 
 export default function TrustLendLoansPage() {
   const [xrplClient, setXrplClient] = useState<XRPLClient | null>(null);
-  const [borrower, setBorrower] = useState<XRPLWallet | null>(null);
-  const [lender, setLender] = useState<XRPLWallet | null>(null);
-  const [principalAmount, setPrincipalAmount] = useState<string>('');
-  const [interestRate, setInterestRate] = useState<string>('');
-  const [duration, setDuration] = useState<string>('');
   const [borrowerStatus, setBorrowerStatus] = useState<AccountStatus>({
     account: null,
     balance: '0',
@@ -312,7 +307,6 @@ export default function TrustLendLoansPage() {
           {/* Account Creation */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow">
             <h2 className="text-xl font-semibold mb-4">Create Test Accounts</h2>
-            <h2 className="text-xl font-semibold mb-4">Test Accounts</h2>
             <p className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded"><strong>Bank/Lender Address:</strong> {bankAddress}</p>
             <button
               onClick={createTestAccounts}
@@ -331,9 +325,6 @@ export default function TrustLendLoansPage() {
                 >
                   Refresh Status
                 </button>
-            {borrower && (
-              <div className="mt-4 space-y-2">
-                <p><strong>Borrower:</strong> {borrower.address}</p>
               </div>
             )}
           </div>
@@ -430,12 +421,10 @@ export default function TrustLendLoansPage() {
                     type="number"
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    min="1"
                     className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    min="10"
+                    min="1"
                     step="1"
-                    placeholder="Enter duration in seconds"
+                    placeholder="Enter duration in days"
                   />
                 </div>
                 <div>
@@ -461,7 +450,7 @@ export default function TrustLendLoansPage() {
 
           {/* Active Loans */}
           {loans.length > 0 && (
-            <div className="p-6 bg-white rounded-lg shadow">
+            <div className="p-6 mb-6 bg-white rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Active Loans</h2>
               <div className="space-y-4">
                 {loans.map((loan) => (
