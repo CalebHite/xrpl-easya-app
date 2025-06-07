@@ -248,7 +248,7 @@ export default function TrustLendLoansPage() {
         xrplClient,
         borrowerStatus.account,
         lenderStatus.account,
-        5 // 5 XRP loan amount for demo
+        parseFloat(principalAmount)
       );
 
       addDebugLog(`Demo loan created: ${loanAgreement.id}`);
