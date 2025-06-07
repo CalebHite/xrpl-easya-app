@@ -1,6 +1,16 @@
 "use client";
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function PeerToPeerLoansPage() {
+  const router = useRouter();
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !localStorage.getItem('xrpl_wallet_active')) {
+      router.replace('/login');
+    }
+  }, [router]);
+
   return (
     <>
       <main className="min-h-screen p-8 bg-gray-100">

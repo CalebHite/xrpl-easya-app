@@ -5,9 +5,9 @@ export default function ClientNavLinks() {
   const [hasWallet, setHasWallet] = useState(false);
   useEffect(() => {
     if (typeof window !== "undefined") {
-      setHasWallet(!!localStorage.getItem("xrpl_wallet"));
+      setHasWallet(!!localStorage.getItem("xrpl_wallet_active"));
     }
-    const onStorage = () => setHasWallet(!!localStorage.getItem("xrpl_wallet"));
+    const onStorage = () => setHasWallet(!!localStorage.getItem("xrpl_wallet_active"));
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);

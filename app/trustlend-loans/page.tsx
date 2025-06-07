@@ -6,6 +6,7 @@ import XRPLClient from '../scripts/xrpl-client';
 import { createLoanFactory } from '../scripts/contract';
 import { createQuickDemoLoan, AutoLoanWalletManager } from '../scripts/wallet-functions';
 import { XRPLWallet, LoanAgreement } from '../scripts/types';
+import { useRouter } from 'next/navigation';
 
 interface AccountStatus {
   account: XRPLWallet | null;
@@ -16,13 +17,12 @@ interface AccountStatus {
 
 export default function TrustLendLoansPage() {
   const [xrplClient, setXrplClient] = useState<XRPLClient | null>(null);
-  const [borrowerStatus, setBorrowerStatus] = useState<AccountStatus>({
-    account: null,
-    balance: '0',
-    isFunded: false,
-    lastUpdated: 0
-  });
-  const [lenderStatus, setLenderStatus] = useState<AccountStatus>({
+  const [activeWallet, setActiveWallet] = useState<XRPLWallet | null>(null);
+  const [lenderWallet, setLenderWallet] = useState<XRPLWallet | null>(null);
+  const [lenderAddress, setLenderAddress] = useState<string>("");
+  const [showPeerInput, setShowPeerInput] = useState<boolean>(false);
+  const [peerInput, setPeerInput] = useState<string>("");
+  const [accountStatus, setAccountStatus] = useState<AccountStatus>({
     account: null,
     balance: '0',
     isFunded: false,
@@ -37,6 +37,7 @@ export default function TrustLendLoansPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const router = useRouter();
 
   const addDebugLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -44,9 +45,24 @@ export default function TrustLendLoansPage() {
     setDebugLogs(prev => [...prev.slice(-9), logMessage]);
     console.log(logMessage);
   };
-  const bankAddress = 'rBpUwvkJfrnRrwGcbLk5TwuAFd8SbxmD4M'; // Permanent XRP address for the bank/lender
 
   useEffect(() => {
+    // Redirect to login if not logged in or no active wallet
+    if (typeof window !== 'undefined') {
+      const wallets = localStorage.getItem('xrpl_wallets');
+      const activeAddress = localStorage.getItem('xrpl_wallet_active');
+      if (!wallets || !activeAddress) {
+        router.replace('/login');
+        return;
+      }
+      const parsedWallets: XRPLWallet[] = JSON.parse(wallets);
+      const found = parsedWallets.find(w => w.address === activeAddress) || null;
+      setActiveWallet(found);
+      if (!found) {
+        router.replace('/account');
+        return;
+      }
+    }
     const initClient = async () => {
       try {
         const client = new XRPLClient();
@@ -60,210 +76,92 @@ export default function TrustLendLoansPage() {
         addDebugLog(`Connection failed: ${errorMsg}`);
       }
     };
-
     initClient();
-    return () => {
-      if (xrplClient) {
-        xrplClient.disconnect();
-      }
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const updateAccountStatus = async (account: XRPLWallet, setter: React.Dispatch<React.SetStateAction<AccountStatus>>) => {
-    if (!xrplClient) return;
-    
-    try {
-      const fundingResult = await xrplClient.checkAndUpdateFunding(account.address);
-      setter({
-        account,
-        balance: fundingResult.balance,
-        isFunded: fundingResult.isFunded,
-        lastUpdated: Date.now()
-      });
-      addDebugLog(`${account.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}`);
-      return fundingResult;
-    } catch (err) {
-      addDebugLog(`Failed to update ${account.userName} status: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      throw err;
-    }
-  };
+  useEffect(() => {
+    if (!xrplClient || !activeWallet) return;
+    const updateStatus = async () => {
+      try {
+        const fundingResult = await xrplClient.checkAndUpdateFunding(activeWallet.address);
+        setAccountStatus({
+          account: activeWallet,
+          balance: fundingResult.balance,
+          isFunded: fundingResult.isFunded,
+          lastUpdated: Date.now()
+        });
+        addDebugLog(`${activeWallet.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}`);
+      } catch (err) {
+        addDebugLog(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    };
+    updateStatus();
+  }, [xrplClient, activeWallet]);
 
-  const createTestAccounts = async () => {
+  // Fetch Lender (create wallet and use its address/seed)
+  const handleFetchLender = async () => {
     if (!xrplClient) return;
     setLoading(true);
     setError(null);
-    setDebugLogs([]);
-    
     try {
-      addDebugLog('Creating borrower and lender accounts...');
-      setStatus('Creating test accounts...');
-
-      // Create both accounts simultaneously
-      const [newBorrower, newLender] = await Promise.all([
-        xrplClient.createAccount('TestBorrower'),
-        xrplClient.createAccount('TestLender')
-      ]);
-
-      addDebugLog(`Borrower created: ${newBorrower.address}`);
-      addDebugLog(`Lender created: ${newLender.address}`);
-
-      // Update initial status for both accounts
-      await Promise.all([
-        updateAccountStatus(newBorrower, setBorrowerStatus),
-        updateAccountStatus(newLender, setLenderStatus)
-      ]);
-
-      setStatus('Accounts created. Checking funding status...');
-
-      // Wait for both accounts to be properly funded
-      let borrowerReady = false;
-      let lenderReady = false;
-      let attempts = 0;
-      const maxAttempts = 10;
-
-      while ((!borrowerReady || !lenderReady) && attempts < maxAttempts) {
-        attempts++;
-        addDebugLog(`Funding check attempt ${attempts}/${maxAttempts}`);
-        
-        if (!borrowerReady) {
-          const borrowerResult = await updateAccountStatus(newBorrower, setBorrowerStatus);
-          borrowerReady = borrowerResult?.isFunded || false;
-        }
-        
-        if (!lenderReady) {
-          const lenderResult = await updateAccountStatus(newLender, setLenderStatus);
-          lenderReady = lenderResult?.isFunded || false;
-        }
-
-        if (!borrowerReady || !lenderReady) {
-          setStatus(`Waiting for funding... Borrower: ${borrowerReady ? '✓' : '○'}, Lender: ${lenderReady ? '✓' : '○'}`);
-          await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-      }
-
-      if (borrowerReady && lenderReady) {
-        setStatus('Both accounts created and funded successfully!');
-        addDebugLog('Both accounts are ready for loan creation');
-      } else {
-        throw new Error(`Failed to fund accounts after ${maxAttempts} attempts. Borrower: ${borrowerReady}, Lender: ${lenderReady}`);
-      }
-
+      const wallet = await xrplClient.createAccount('DemoLender');
+      setLenderWallet(wallet);
+      setLenderAddress(wallet.address);
+      setShowPeerInput(false);
+      addDebugLog(`Created lender wallet: ${wallet.address}`);
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create test accounts';
-      setError(errorMsg);
-      addDebugLog(`Account creation failed: ${errorMsg}`);
+      setError('Failed to create lender wallet');
+      addDebugLog('Failed to create lender wallet');
     } finally {
       setLoading(false);
     }
   };
 
-  const createLoan = async () => {
-    if (!xrplClient || !borrowerStatus.account || !lenderStatus.account) return;
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const lenderRequiredAmount = parseFloat(principalAmount) + 5; // Principal + buffer for fees
-      const borrowerRequiredAmount = 5; // Just enough for transaction fees
-      
-      addDebugLog(`Starting loan creation`);
-      addDebugLog(`Borrower balance: ${borrowerStatus.balance} XRP (needs ~${borrowerRequiredAmount} XRP for fees)`);
-      addDebugLog(`Lender balance: ${lenderStatus.balance} XRP (needs ${lenderRequiredAmount} XRP to fund loan)`);
-
-      // Verify both accounts have sufficient funds for their roles
-      if (parseFloat(borrowerStatus.balance) < borrowerRequiredAmount) {
-        throw new Error(`Borrower needs at least ${borrowerRequiredAmount} XRP for transaction fees. Current: ${borrowerStatus.balance} XRP`);
-      }
-
-      if (parseFloat(lenderStatus.balance) < lenderRequiredAmount) {
-        throw new Error(`Lender needs at least ${lenderRequiredAmount} XRP to fund the loan. Current: ${lenderStatus.balance} XRP`);
-      }
-
-      setStatus('Creating loan contract...');
-      addDebugLog('All pre-checks passed, creating loan contract');
-
-      const loanFactory = createLoanFactory(xrplClient);
-      const borrowerWallet = Wallet.fromSeed(borrowerStatus.account.seed);
-      const lenderWallet = Wallet.fromSeed(lenderStatus.account.seed);
-      
-      addDebugLog(`Loan params: ${principalAmount} XRP, ${interestRate}%, ${duration} days`);
-      
-      const result = await loanFactory.createLoan(
-        borrowerWallet,
-        lenderWallet,
-        parseFloat(principalAmount),
-        parseFloat(interestRate),
-        parseInt(duration) * 86400, // Convert days to seconds
-        terms
-      );
-
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to create loan contract');
-      }
-
-      addDebugLog(`Loan contract created successfully. ID: ${result.contractId}`);
-      setStatus('Loan contract created successfully!');
-      
-      if (result.agreement) {
-        setLoans(prev => [...prev, result.agreement!]);
-      }
-
-    } catch (err) {
-      let errorMsg = err instanceof Error ? err.message : 'Failed to create loan contract';
-      if (errorMsg === 'failed to loan principle') {
-        errorMsg = 'Lender does not have enough XRP for transaction.';
-      }
-      setError(errorMsg);
-      addDebugLog(`Loan creation failed: ${errorMsg}`);
-    } finally {
-      setLoading(false);
-    }
+  // Peer-to-peer: allow user to input lender address
+  const handlePeerToPeer = () => {
+    setShowPeerInput(true);
+    setLenderAddress("");
+    setLenderWallet(null);
   };
-
-  const refreshAccountStatus = async () => {
-    if (!xrplClient || (!borrowerStatus.account && !lenderStatus.account)) return;
-    
-    try {
-      const updates = [];
-      if (borrowerStatus.account) {
-        updates.push(updateAccountStatus(borrowerStatus.account, setBorrowerStatus));
-      }
-      if (lenderStatus.account) {
-        updates.push(updateAccountStatus(lenderStatus.account, setLenderStatus));
-      }
-      await Promise.all(updates);
-    } catch (err) {
-      addDebugLog(`Failed to refresh account status: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    }
+  const handleSetPeerAddress = () => {
+    setLenderAddress(peerInput.trim());
+    setLenderWallet(null);
+    setShowPeerInput(false);
+    addDebugLog(`Set peer-to-peer lender address: ${peerInput.trim()}`);
   };
 
   const createDemoAutoLoan = async () => {
-    if (!xrplClient || !borrowerStatus.account || !lenderStatus.account) return;
+    if (!xrplClient || !accountStatus.account || !lenderAddress) return;
     setLoading(true);
     setError(null);
-    
     try {
-      addDebugLog('Creating DEMO auto-repayment loan (30 seconds)');
+      addDebugLog('Step 1: Starting demo loan creation');
       setStatus('Creating demo loan with automatic repayment...');
-
+      // Check funding before proceeding
+      addDebugLog('Step 2: Checking account funding');
+      const fundingResult = await xrplClient.checkAndUpdateFunding(accountStatus.account.address);
+      if (!fundingResult.isFunded || parseFloat(fundingResult.balance) < 10) {
+        throw new Error(`Account is not funded or has insufficient XRP (balance: ${fundingResult.balance}). Please fund your wallet using the XRPL Testnet faucet.`);
+      }
+      addDebugLog('Step 3: Account is funded, calling createQuickDemoLoan');
+      // Use lenderWallet if present (bank lender), otherwise use just the address (peer-to-peer)
+      const lender = lenderWallet ? lenderWallet : { address: lenderAddress, seed: '', userName: 'Lender' };
       const loanAgreement = await createQuickDemoLoan(
         xrplClient,
-        borrowerStatus.account,
-        lenderStatus.account,
+        accountStatus.account,
+        lender,
         parseFloat(principalAmount)
       );
-
-      addDebugLog(`Demo loan created: ${loanAgreement.id}`);
-      addDebugLog(`Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
-      
+      addDebugLog(`Step 4: Demo loan created: ${loanAgreement.id}`);
+      addDebugLog(`Step 5: Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
       setLoans(prev => [...prev, loanAgreement]);
       setStatus('Demo loan created! Will automatically repay in 30 seconds.');
-
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to create demo loan';
       setError(errorMsg);
-      addDebugLog(`Demo loan creation failed: ${errorMsg}`);
+      addDebugLog(`Error: ${errorMsg}`);
+      setStatus('Failed to create demo loan. See logs below.');
     } finally {
       setLoading(false);
     }
@@ -274,93 +172,88 @@ export default function TrustLendLoansPage() {
     return (principal + interest).toFixed(2);
   };
 
-  const bothAccountsReady = borrowerStatus.isFunded && lenderStatus.isFunded;
+  const isReady = accountStatus.isFunded;
 
   return (
     <>
       <main className="min-h-screen p-8 bg-gray-100">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-8">TrustLend Loans</h1>
-          
           {status && (
             <div className="mb-4 p-4 bg-blue-100 text-blue-700 rounded">
               {status}
             </div>
           )}
-          
           {error && (
             <div className="mb-4 p-4 bg-red-100 text-red-700 rounded">
               <strong>Error:</strong> {error}
             </div>
           )}
-
-          {/* Account Creation */}
-          <div className="mb-8 p-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Create Test Accounts</h2>
-            <p className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded"><strong>Bank/Lender Address:</strong> {bankAddress}</p>
-            <button
-              onClick={createTestAccounts}
-              disabled={loading || bothAccountsReady || !xrplClient}
-              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
-            >
-              {loading ? 'Creating...' : 'Create Borrower & Lender Accounts'}
-            </button>
-            
-            {(borrowerStatus.account || lenderStatus.account) && (
-              <div className="mt-4">
-                <button
-                  onClick={refreshAccountStatus}
-                  disabled={loading}
-                  className="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-400"
-                >
-                  Refresh Status
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Account Status Display */}
-          {(borrowerStatus.account || lenderStatus.account) && (
+          {/* Active Wallet Info */}
+          {activeWallet && (
             <div className="mb-8 p-6 bg-white rounded-lg shadow">
-              <h2 className="text-xl font-semibold mb-4">Account Status</h2>
-              <div className="grid md:grid-cols-2 gap-4">
-                {borrowerStatus.account && (
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold text-green-700">Borrower Account</h3>
-                    <p className="text-sm font-mono break-all">{borrowerStatus.account.address}</p>
-                    <p className="mt-2">
-                      <span className="font-medium">Balance:</span> {borrowerStatus.balance} XRP
-                    </p>
-                    <p>
-                      <span className="font-medium">Status:</span> 
-                      <span className={`ml-1 ${borrowerStatus.isFunded ? 'text-green-600' : 'text-red-600'}`}>
-                        {borrowerStatus.isFunded ? '✓ Funded' : '○ Needs Funding'}
-                      </span>
-                    </p>
-                  </div>
-                )}
-                
-                {lenderStatus.account && (
-                  <div className="p-4 border rounded-lg">
-                    <h3 className="font-semibold text-blue-700">Lender Account</h3>
-                    <p className="text-sm font-mono break-all">{lenderStatus.account.address}</p>
-                    <p className="mt-2">
-                      <span className="font-medium">Balance:</span> {lenderStatus.balance} XRP
-                    </p>
-                    <p>
-                      <span className="font-medium">Status:</span> 
-                      <span className={`ml-1 ${lenderStatus.isFunded ? 'text-green-600' : 'text-red-600'}`}>
-                        {lenderStatus.isFunded ? '✓ Funded' : '○ Needs Funding'}
-                      </span>
-                    </p>
-                  </div>
-                )}
+              <h2 className="text-xl font-semibold mb-4">Active Account</h2>
+              <div className="p-4 border rounded-lg">
+                <h3 className="font-semibold text-blue-700">{activeWallet.userName}</h3>
+                <p className="text-sm font-mono break-all">{activeWallet.address}</p>
+                <p className="mt-2">
+                  <span className="font-medium">Balance:</span> {accountStatus.balance} XRP
+                </p>
+                <p>
+                  <span className="font-medium">Status:</span>
+                  <span className={`ml-1 ${accountStatus.isFunded ? 'text-green-600' : 'text-red-600'}`}>{accountStatus.isFunded ? '✓ Funded' : '○ Needs Funding'}</span>
+                </p>
+                <a href="/account" className="inline-block mt-2 px-3 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300">Switch Account</a>
               </div>
             </div>
           )}
-
+          {/* Lender Selection */}
+          <div className="mb-8 p-6 bg-white rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Lender Selection</h2>
+            <div className="flex flex-col md:flex-row gap-4 items-center">
+              <button
+                onClick={handleFetchLender}
+                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                disabled={loading}
+              >
+                Use Bank Lender
+              </button>
+              <span className="text-gray-500">or</span>
+              <button
+                onClick={handlePeerToPeer}
+                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+                disabled={loading}
+              >
+                Peer-to-Peer
+              </button>
+            </div>
+            {showPeerInput && (
+              <div className="mt-4 flex gap-2 items-center">
+                <input
+                  type="text"
+                  value={peerInput}
+                  onChange={e => setPeerInput(e.target.value)}
+                  className="p-2 border rounded bg-gray-50 flex-1"
+                  placeholder="Enter lender address"
+                />
+                <button
+                  onClick={handleSetPeerAddress}
+                  className="px-3 py-2 bg-blue-400 text-white rounded hover:bg-blue-500"
+                  disabled={!peerInput.trim()}
+                >
+                  Set
+                </button>
+              </div>
+            )}
+            {lenderAddress && (
+              <div className="mt-4 p-2 bg-gray-100 border rounded">
+                <span className="font-mono text-xs">Lender: {lenderAddress}</span>
+                <span className="ml-2 text-green-700">✓ Ready</span>
+              </div>
+            )}
+          </div>
           {/* Loan Creation Form */}
-          {bothAccountsReady && (
+          {isReady && lenderAddress && (
             <div className="mb-8 p-6 bg-white rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Create Loan Contract</h2>
               <div className="space-y-4">
@@ -402,7 +295,7 @@ export default function TrustLendLoansPage() {
                     3. Borrower will repay {calculateTotalRepayment(parseFloat(principalAmount), parseFloat(interestRate))} XRP
                   </p>
                   <p className="text-sm text-gray-600 mt-2">
-                    <strong>Required:</strong> Lender needs {(parseFloat(principalAmount) + 5).toFixed(2)} XRP minimum
+                    <strong>Required:</strong> Account needs enough XRP for fees and principal
                   </p>
                 </div>
                 <div>
@@ -429,7 +322,7 @@ export default function TrustLendLoansPage() {
                 </div>
                 <button
                   onClick={createDemoAutoLoan}
-                  disabled={loading || !bothAccountsReady}
+                  disabled={loading || !isReady || !lenderAddress}
                   className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
                 >
                   {loading ? 'Creating Loan...' : 'Create Loan Contract'}
@@ -437,7 +330,6 @@ export default function TrustLendLoansPage() {
               </div>
             </div>
           )}
-
           {/* Active Loans */}
           {loans.length > 0 && (
             <div className="p-6 mb-6 bg-white rounded-lg shadow">

@@ -27,7 +27,20 @@ export default function LoginPage() {
         seed: wallet.seed!,
         userName,
       };
-      localStorage.setItem("xrpl_wallet", JSON.stringify(xrplWallet));
+      // Multi-wallet logic
+      let wallets: XRPLWallet[] = [];
+      const stored = localStorage.getItem("xrpl_wallets");
+      if (stored) {
+        wallets = JSON.parse(stored);
+        // Prevent duplicates by address
+        if (!wallets.some(w => w.address === xrplWallet.address)) {
+          wallets.push(xrplWallet);
+        }
+      } else {
+        wallets = [xrplWallet];
+      }
+      localStorage.setItem("xrpl_wallets", JSON.stringify(wallets));
+      localStorage.setItem("xrpl_wallet_active", xrplWallet.address);
       router.push("/account");
     } catch (err: any) {
       setError(err.message || "Invalid seed");
@@ -45,7 +58,20 @@ export default function LoginPage() {
       const client = new XRPLClient();
       await client.connect();
       const wallet = await client.createAccount(userName);
-      localStorage.setItem("xrpl_wallet", JSON.stringify(wallet));
+      // Multi-wallet logic
+      let wallets: XRPLWallet[] = [];
+      const stored = localStorage.getItem("xrpl_wallets");
+      if (stored) {
+        wallets = JSON.parse(stored);
+        // Prevent duplicates by address
+        if (!wallets.some(w => w.address === wallet.address)) {
+          wallets.push(wallet);
+        }
+      } else {
+        wallets = [wallet];
+      }
+      localStorage.setItem("xrpl_wallets", JSON.stringify(wallets));
+      localStorage.setItem("xrpl_wallet_active", wallet.address);
       router.push("/account");
     } catch (err: any) {
       setError(err.message || "Failed to create wallet");
