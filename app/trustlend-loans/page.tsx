@@ -210,7 +210,10 @@ export default function TrustLendLoansPage() {
       }
 
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to create loan contract';
+      let errorMsg = err instanceof Error ? err.message : 'Failed to create loan contract';
+      if (errorMsg === 'failed to loan principle') {
+        errorMsg = 'Lender does not have enough XRP for transaction.';
+      }
       setError(errorMsg);
       addDebugLog(`Loan creation failed: ${errorMsg}`);
     } finally {
@@ -297,7 +300,7 @@ export default function TrustLendLoansPage() {
             <p className="mb-4 p-2 bg-yellow-100 border border-yellow-300 rounded"><strong>Bank/Lender Address:</strong> {bankAddress}</p>
             <button
               onClick={createTestAccounts}
-              disabled={loading || bothAccountsReady}
+              disabled={loading || bothAccountsReady || !xrplClient}
               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-400"
             >
               {loading ? 'Creating...' : 'Create Borrower & Lender Accounts'}
