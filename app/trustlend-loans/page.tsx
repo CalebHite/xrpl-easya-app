@@ -300,17 +300,8 @@ export default function TrustLendLoansPage() {
             </div>
           )}
 
-          {/* Debug Logs */}
-          {debugLogs.length > 0 && (
-            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-semibold mb-2">Debug Logs:</h3>
-              <div className="text-xs font-mono space-y-1 max-h-40 overflow-y-auto">
-                {debugLogs.map((log, index) => (
-                  <div key={index} className="text-gray-600">{log}</div>
-                ))}
-              </div>
-            </div>
-          )}
+          
+          
 
           {/* Account Creation */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow">
@@ -476,6 +467,21 @@ export default function TrustLendLoansPage() {
                 ))}
               </div>
             </div>
+          )}
+          {/* Debug Logs */}
+          {debugLogs.length > 0 && (
+            <details className="mb-6">
+              <summary className="p-4 bg-gray-50 rounded-lg cursor-pointer hover:bg-gray-100">
+                <h3 className="text-sm font-semibold inline">Logs</h3>
+              </summary>
+              <div className="p-4 bg-gray-50 rounded-lg mt-1">
+                <div className="text-xs font-mono space-y-1 max-h-40 overflow-y-auto">
+                  {debugLogs.map((log, index) => (
+                    <div key={index} className="text-gray-600">{log}</div>
+                  ))}
+                </div>
+              </div>
+            </details>
           )}
         </div>
       </main>
