@@ -4,6 +4,7 @@ import { useState } from "react";
 import XRPLClient from "../scripts/xrpl-client";
 import { XRPLWallet } from "../scripts/types";
 import { useRouter } from "next/navigation";
+import LoadingOverlay from "../components/LoadingOverlay";
 
 export default function LoginPage() {
   const [seed, setSeed] = useState("");
@@ -82,6 +83,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
+      {loading && <LoadingOverlay message="Processing..." />}
       <div className="bg-white p-8 rounded-lg shadow max-w-md w-full">
         <h1 className="text-2xl font-bold mb-6 text-blue-700">Access Your XRP Wallet</h1>
         {error && <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">{error}</div>}

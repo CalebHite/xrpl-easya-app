@@ -7,6 +7,7 @@ import { createLoanFactory } from '../scripts/contract';
 import { createQuickDemoLoan, AutoLoanWalletManager } from '../scripts/wallet-functions';
 import { XRPLWallet, LoanAgreement } from '../scripts/types';
 import { useRouter } from 'next/navigation';
+import LoadingOverlay from "../components/LoadingOverlay";
 
 interface AccountStatus {
   account: XRPLWallet | null;
@@ -33,7 +34,7 @@ export default function TrustLendLoansPage() {
   const [duration, setDuration] = useState<string>('30');
   const [terms, setTerms] = useState<string>('');
   const [loans, setLoans] = useState<LoanAgreement[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>('');
   const [debugLogs, setDebugLogs] = useState<string[]>([]);
@@ -64,6 +65,7 @@ export default function TrustLendLoansPage() {
       }
     }
     const initClient = async () => {
+      setLoading(true);
       try {
         const client = new XRPLClient();
         await client.connect();
@@ -75,6 +77,7 @@ export default function TrustLendLoansPage() {
         setError(errorMsg);
         addDebugLog(`Connection failed: ${errorMsg}`);
       }
+      setLoading(false);
     };
     initClient();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,8 +104,8 @@ export default function TrustLendLoansPage() {
 
   // Fetch Lender (create wallet and use its address/seed)
   const handleFetchLender = async () => {
-    if (!xrplClient) return;
     setLoading(true);
+    if (!xrplClient) return;
     setError(null);
     try {
       const wallet = await xrplClient.createAccount('DemoLender');
@@ -176,6 +179,7 @@ export default function TrustLendLoansPage() {
 
   return (
     <>
+      {loading && <LoadingOverlay message="Loading..." />}
       <main className="min-h-screen p-8 bg-gray-100">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-3xl font-bold mb-8">Request a Loan</h1>

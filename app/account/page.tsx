@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import XRPLClient from "../scripts/xrpl-client";
 import { XRPLWallet, LoanAgreement } from "../scripts/types";
 import { useRouter } from "next/navigation";
+import LoadingOverlay from "../components/LoadingOverlay";
 
 export default function AccountPage() {
   const [wallets, setWallets] = useState<XRPLWallet[]>([]);
@@ -111,6 +112,7 @@ export default function AccountPage() {
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
+      {loading && <LoadingOverlay message="Loading account..." />}
       <div className="bg-white p-8 rounded-lg shadow max-w-lg w-full">
         <h1 className="text-2xl font-bold mb-6 text-blue-700">Account Dashboard</h1>
         {/* New wallet creation form */}
