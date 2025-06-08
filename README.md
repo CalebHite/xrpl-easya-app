@@ -15,7 +15,7 @@ Curious how TrustLend works? Watch our quick demo video below to see the platfor
 
 
 
-> _Click the image above to watch on YouTube._
+[> _Click here to watch!_](https://www.loom.com/share/d66592c0bc014c4fb86804a25cf30af9?sid=f894fd78-321c-403b-8e3c-5b7e2a9a24e0)
 
 ---
 
