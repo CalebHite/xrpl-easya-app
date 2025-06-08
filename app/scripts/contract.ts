@@ -1,13 +1,15 @@
 import { Wallet, xrpToDrops } from 'xrpl';
 import XRPLClient from './xrpl-client';
 import { LoanAgreement, LoanCreationResult, AutoLoanHook, HookTransaction, XRPLWallet } from './types';
-import { CreditManager, updateWalletCreditInStorage } from './credit-manager';
+import { CreditManager } from './credit-manager';
+import { updateWalletCreditInStorage } from './credit-manager';
 
 export class AutoRepaymentLoanFactory {
   private xrplClient: XRPLClient;
   private activeLoans: Map<string, LoanAgreement> = new Map();
   private activeHooks: Map<string, AutoLoanHook> = new Map();
   private onLoanRepaidCallback?: (loanAgreement: LoanAgreement) => void;
+  private onLoanDefaultedCallback?: (loanAgreement: LoanAgreement) => void;
 
   constructor(xrplClient: XRPLClient) {
     this.xrplClient = xrplClient;
@@ -18,6 +20,13 @@ export class AutoRepaymentLoanFactory {
    */
   setOnLoanRepaidCallback(callback: (loanAgreement: LoanAgreement) => void) {
     this.onLoanRepaidCallback = callback;
+  }
+
+  /**
+   * Set callback function to be called when a loan is defaulted
+   */
+  setOnLoanDefaultedCallback(callback: (loanAgreement: LoanAgreement) => void) {
+    this.onLoanDefaultedCallback = callback;
   }
 
   async createLoan(
@@ -141,7 +150,7 @@ export class AutoRepaymentLoanFactory {
       console.log(`Executing scheduled repayment for loan ${loanId}`);
       // Attempt repayment from borrower to lender
       const repaymentResult = await this.xrplClient.sendPayment(
-        hook.borrowerWallet,
+        hook.borrowerWallet!,
         loan.lenderAddress,
         hook.repaymentAmount.toString()
       );
@@ -151,6 +160,7 @@ export class AutoRepaymentLoanFactory {
         loan.status = 'repaid';
         loan.repaidAt = Math.floor(Date.now() / 1000);
         hook.isActive = false;
+
         console.log(`Loan ${loanId} repaid successfully`);
       } else {
         throw new Error('Repayment transaction failed');
@@ -159,6 +169,10 @@ export class AutoRepaymentLoanFactory {
       console.error(`Scheduled repayment failed for loan ${loanId}:`, error);
       if (loan) loan.status = 'defaulted';
       if (hook) hook.isActive = false;
+      // Trigger credit penalty callback
+      if (loan && this.onLoanDefaultedCallback) {
+        this.onLoanDefaultedCallback(loan);
+      }
     }
   }
 

@@ -4,7 +4,7 @@ export interface XRPLWallet {
   address: string;
   seed: string;  
   userName: string;
-  creditScore: number; // Credit score based on successful loan repayments (starts at 100)
+  creditScore: number; // Credit score based on successful loan repayments (starts at 200)
 }
 
 export interface LoanAgreement {
@@ -58,7 +58,7 @@ export interface HookTransaction {
 }
 
 export interface CreditRequirement {
-  minCreditScore: number;
+  minCreditScore: number; // Doubled for new scale
   maxLoanAmount: number;
   description: string;
 }

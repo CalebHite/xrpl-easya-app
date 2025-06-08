@@ -16,6 +16,13 @@ export class AutoLoanWalletManager {
     this.loanFactory.setOnLoanRepaidCallback((loan: LoanAgreement) => {
       this.handleLoanRepayment(loan);
     });
+
+    // Set up credit decrease callback for defaults
+    if (typeof this.loanFactory.setOnLoanDefaultedCallback === 'function') {
+      this.loanFactory.setOnLoanDefaultedCallback((loan: LoanAgreement) => {
+        this.handleLoanDefault(loan);
+      });
+    }
   }
 
   /**
@@ -43,6 +50,31 @@ export class AutoLoanWalletManager {
       }
     } catch (error) {
       console.error('Failed to update credit score:', error);
+    }
+  }
+
+  /**
+   * Handle loan default and decrease borrower's credit score
+   */
+  private handleLoanDefault(loan: LoanAgreement): void {
+    try {
+      if (typeof window !== 'undefined') {
+        const walletsData = localStorage.getItem('xrpl_wallets');
+        if (walletsData) {
+          const wallets: XRPLWallet[] = JSON.parse(walletsData);
+          const borrowerWallet = wallets.find(w => w.address === loan.borrowerAddress);
+          if (borrowerWallet) {
+            const creditUpdate = CreditManager.decreaseCreditScoreOnDefault(borrowerWallet);
+            updateWalletCreditInStorage(borrowerWallet.address, creditUpdate.newScore);
+            console.log(`Credit penalized for ${borrowerWallet.userName}:`);
+            console.log(`- Previous score: ${creditUpdate.oldScore}`);
+            console.log(`- New score: ${creditUpdate.newScore} (-${creditUpdate.decrease})`);
+            console.log(`- New tier: ${creditUpdate.newTier.description} (max loan: ${creditUpdate.newTier.maxLoanAmount} XRP)`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to penalize credit score:', error);
     }
   }
 
@@ -225,7 +257,6 @@ Automatic Repayment: ${repaymentDate.toLocaleString()}
 Time Remaining: ${timeString}
 Borrower: ${loan.borrowerAddress}
 Lender: ${loan.lenderAddress}
-Hook Account: ${loan.hookAccountId}
 ${loan.terms ? `Terms: ${loan.terms}` : ''}
     `.trim();
   }

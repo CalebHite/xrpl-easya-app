@@ -96,17 +96,27 @@ export default function TrustLendLoansPage() {
     const updateStatus = async () => {
       try {
         const fundingResult = await xrplClient.checkAndUpdateFunding(activeWallet.address);
-        const creditScore = activeWallet.creditScore || 100;
+        // Reload wallet from localStorage to get updated credit score
+        let updatedWallet = activeWallet;
+        if (typeof window !== 'undefined') {
+          const wallets = localStorage.getItem('xrpl_wallets');
+          if (wallets) {
+            const parsedWallets: XRPLWallet[] = JSON.parse(wallets);
+            const found = parsedWallets.find(w => w.address === activeWallet.address);
+            if (found) updatedWallet = found;
+          }
+        }
+        const creditScore = updatedWallet.creditScore || 100;
         const creditTier = CreditManager.getCreditTier(creditScore);
         setAccountStatus({
-          account: activeWallet,
+          account: updatedWallet,
           balance: fundingResult.balance,
           isFunded: fundingResult.isFunded,
           lastUpdated: Date.now(),
           creditScore,
           creditTier
         });
-        addDebugLog(`${activeWallet.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}, credit: ${CreditManager.formatCreditDisplay(creditScore)}`);
+        addDebugLog(`${updatedWallet.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}, credit: ${CreditManager.formatCreditDisplay(creditScore)}`);
       } catch (err) {
         addDebugLog(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
@@ -199,7 +209,7 @@ export default function TrustLendLoansPage() {
       addDebugLog(`Step 4a: Borrower balance before loan: ${borrowerBalanceBefore} XRP`);
       
       // Use lenderWallet if present (bank lender), otherwise use just the address (peer-to-peer)
-      const lender = lenderWallet ? lenderWallet : { address: lenderAddress, seed: '', userName: 'Lender' };
+      const lender = lenderWallet ? lenderWallet : { address: lenderAddress, seed: '', userName: 'Lender', creditScore: 100 };
       
       if (!lenderWallet && lenderAddress) {
         throw new Error('Peer-to-peer loans are not fully supported yet. Please use "Bank Lender" option.');
@@ -336,6 +346,47 @@ export default function TrustLendLoansPage() {
               </div>
             )}
           </div>
+          {/* Credit Tiers Information (only show if bank lender is selected) */}
+          {lenderWallet && (
+            <div className="p-6 mb-6 bg-white rounded-lg shadow">
+              <h2 className="text-xl font-semibold mb-4">Credit Tiers</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Build your credit score by successfully repaying loans to unlock higher loan amounts.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {CreditManager.getAllTiers().map((tier, index) => {
+                  const isCurrent = accountStatus.creditScore >= tier.minCreditScore && 
+                                  (index === CreditManager.getAllTiers().length - 1 || 
+                                   accountStatus.creditScore < CreditManager.getAllTiers()[index + 1].minCreditScore);
+                  return (
+                    <div key={tier.description} className={`p-4 border rounded-lg ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className={`font-semibold ${isCurrent ? 'text-blue-700' : 'text-gray-700'}`}> 
+                          {tier.description}
+                          {isCurrent && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Current</span>}
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Min Score: {tier.minCreditScore}
+                      </p>
+                      <p className="text-sm font-medium text-gray-800">
+                        Max Loan: {tier.maxLoanAmount} XRP
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                <h3 className="font-semibold text-gray-700 mb-2">How to Build Credit</h3>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  <li>• Successfully repay loans on time to earn credit points</li>
+                  <li>• Earn approximately 2 points per XRP repaid</li>
+                  <li>• Minimum 10 points per successful loan, maximum 100 points</li>
+                  <li>• Higher loan amounts = more credit points earned</li>
+                </ul>
+              </div>
+            </div>
+          )}
           {/* Loan Creation Form */}
           {isReady && lenderAddress && (
             <div className="mb-8 p-6 bg-white rounded-lg shadow">
@@ -467,46 +518,6 @@ export default function TrustLendLoansPage() {
               </div>
             </div>
           )}
-          
-          {/* Credit Tiers Information */}
-          <div className="p-6 mb-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Credit Tiers</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Build your credit score by successfully repaying loans to unlock higher loan amounts.
-            </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {CreditManager.getAllTiers().map((tier, index) => {
-                const isCurrent = accountStatus.creditScore >= tier.minCreditScore && 
-                                (index === CreditManager.getAllTiers().length - 1 || 
-                                 accountStatus.creditScore < CreditManager.getAllTiers()[index + 1].minCreditScore);
-                return (
-                  <div key={tier.description} className={`p-4 border rounded-lg ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className={`font-semibold ${isCurrent ? 'text-blue-700' : 'text-gray-700'}`}>
-                        {tier.description}
-                        {isCurrent && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Current</span>}
-                      </h3>
-                    </div>
-                    <p className="text-sm text-gray-600">
-                      Min Score: {tier.minCreditScore}
-                    </p>
-                    <p className="text-sm font-medium text-gray-800">
-                      Max Loan: {tier.maxLoanAmount} XRP
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="font-semibold text-gray-700 mb-2">How to Build Credit</h3>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Successfully repay loans on time to earn credit points</li>
-                <li>• Earn approximately 2 points per XRP repaid</li>
-                <li>• Minimum 10 points per successful loan, maximum 100 points</li>
-                <li>• Higher loan amounts = more credit points earned</li>
-              </ul>
-            </div>
-          </div>
           
           {/* Debug Logs */}
           {debugLogs.length > 0 && (

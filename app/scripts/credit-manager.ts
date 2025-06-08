@@ -5,9 +5,9 @@ export class CreditManager {
   private static readonly CREDIT_TIERS: CreditRequirement[] = [
     { minCreditScore: 0, maxLoanAmount: 10, description: 'Starter' },
     { minCreditScore: 150, maxLoanAmount: 25, description: 'Bronze' },
-    { minCreditScore: 250, maxLoanAmount: 50, description: 'Silver' },
-    { minCreditScore: 400, maxLoanAmount: 100, description: 'Gold' },
-    { minCreditScore: 600, maxLoanAmount: 250, description: 'Platinum' },
+    { minCreditScore: 300, maxLoanAmount: 50, description: 'Silver' },
+    { minCreditScore: 500, maxLoanAmount: 100, description: 'Gold' },
+    { minCreditScore: 750, maxLoanAmount: 200, description: 'Platinum' },
     { minCreditScore: 1000, maxLoanAmount: 500, description: 'Diamond' },
   ];
 
@@ -21,7 +21,7 @@ export class CreditManager {
    */
   static initializeCreditScore(wallet: XRPLWallet): XRPLWallet {
     if (wallet.creditScore === undefined) {
-      wallet.creditScore = 100; // Starting credit score
+      wallet.creditScore = 100; // Starting credit score (doubled)
     }
     return wallet;
   }
@@ -138,20 +138,41 @@ export class CreditManager {
       return {
         current,
         next,
-        progress: 100,
+        progress: 50,
         pointsNeeded: 0
       };
     }
     
     const pointsNeeded = next.minCreditScore - creditScore;
     const totalPointsNeeded = next.minCreditScore - current.minCreditScore;
-    const progress = Math.max(0, Math.min(100, ((creditScore - current.minCreditScore) / totalPointsNeeded) * 100));
+    const progress = Math.max(0, Math.min(50, ((creditScore - current.minCreditScore) / totalPointsNeeded) * 50));
     
     return {
       current,
       next,
       progress,
       pointsNeeded
+    };
+  }
+
+  /**
+   * Decrease wallet credit score after loan default
+   */
+  static decreaseCreditScoreOnDefault(wallet: XRPLWallet): {
+    oldScore: number;
+    newScore: number;
+    decrease: number;
+    newTier: CreditRequirement;
+  } {
+    const oldScore = wallet.creditScore || 100;
+    const decrease = 50; // Fixed penalty for default (doubled)
+    const newScore = Math.max(0, oldScore - decrease);
+    wallet.creditScore = newScore;
+    return {
+      oldScore,
+      newScore,
+      decrease,
+      newTier: this.getCreditTier(newScore)
     };
   }
 }

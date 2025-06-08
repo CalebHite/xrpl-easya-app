@@ -5,6 +5,7 @@ import XRPLClient from "../scripts/xrpl-client";
 import { XRPLWallet, LoanAgreement } from "../scripts/types";
 import { useRouter } from "next/navigation";
 import LoadingOverlay from "../components/LoadingOverlay";
+import { CreditManager } from "../scripts/credit-manager";
 
 export default function AccountPage() {
   const [wallets, setWallets] = useState<XRPLWallet[]>([]);
@@ -156,6 +157,10 @@ export default function AccountPage() {
         <div className="mb-4">
           <div className="font-semibold">Username:</div>
           <div className="font-mono text-gray-700">{activeWallet.userName}</div>
+        </div>
+        <div className="mb-4">
+          <div className="font-semibold">Credit Score:</div>
+          <div className="font-mono text-blue-700">{CreditManager.formatCreditDisplay(activeWallet.creditScore)}</div>
         </div>
         <div className="mb-4">
           <div className="font-semibold">Wallet Address:</div>
