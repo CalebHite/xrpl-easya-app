@@ -1,3 +1,5 @@
+import { Wallet } from 'xrpl';
+
 export interface XRPLWallet {
   address: string;
   seed: string;  
@@ -18,7 +20,6 @@ export interface LoanAgreement {
   terms: string;
   repaidAt?: number; // Unix timestamp when repaid
   txHash?: string; // Transaction hash for loan creation
-  hookAccountId?: string; // Hook account for automatic repayment
 }
 
 export interface LoanCreationResult {
@@ -36,12 +37,12 @@ export interface FundingStatus {
 }
 
 export interface AutoLoanHook {
-  hookAccountId: string;
   borrowerAddress: string;
   lenderAddress: string;
   repaymentAmount: number;
   executeAt: number;
   isActive: boolean;
+  borrowerWallet?: Wallet;
 }
 
 export interface HookTransaction {
