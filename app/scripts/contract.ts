@@ -26,8 +26,18 @@ export class AutoRepaymentLoanFactory {
       const totalRepaymentAmount = principalAmount + (principalAmount * interestRate / 100);
 
       console.log(`Creating loan ${loanId} with auto-repayment hook`);
+      console.log(`Loan details: ${principalAmount} XRP principal, ${totalRepaymentAmount} XRP total repayment`);
 
-      // Step 1: Create a hook account that will handle automatic repayment
+      // Step 1: Check lender has sufficient balance
+      const lenderBalance = await this.xrplClient.getAccountBalance(lenderWallet.address);
+      const lenderBalanceNum = parseFloat(lenderBalance);
+      console.log(`Lender balance: ${lenderBalance} XRP`);
+      
+      if (lenderBalanceNum < principalAmount + 2) { // Need principal + fees
+        throw new Error(`Lender has insufficient balance. Has: ${lenderBalance} XRP, needs: ${principalAmount + 2} XRP`);
+      }
+
+      // Step 2: Create a hook account that will handle automatic repayment
       const hookAccount = await this.createHookAccount(
         borrowerWallet,
         lenderWallet.address,
@@ -35,18 +45,20 @@ export class AutoRepaymentLoanFactory {
         executeAt
       );
 
-      // Step 2: Transfer principal from lender to borrower
+      // Step 3: Transfer principal from lender to borrower
+      console.log(`Transferring ${principalAmount} XRP from lender (${lenderWallet.address}) to borrower (${borrowerWallet.address})`);
       const loanTransferResult = await this.xrplClient.sendPayment(
         lenderWallet,
         borrowerWallet.address,
         principalAmount.toString()
       );
 
+      console.log(`Loan transfer result: ${loanTransferResult.result.meta.TransactionResult}`);
       if (loanTransferResult.result.meta.TransactionResult !== 'tesSUCCESS') {
-        throw new Error('Failed to transfer loan principal');
+        throw new Error(`Failed to transfer loan principal: ${loanTransferResult.result.meta.TransactionResult}`);
       }
 
-      // Step 3: Set up automatic repayment hook
+      // Step 4: Set up automatic repayment hook
       const hookSetupResult = await this.setupAutomaticRepaymentHook(
         borrowerWallet,
         hookAccount.address,
@@ -54,7 +66,7 @@ export class AutoRepaymentLoanFactory {
         executeAt
       );
 
-      // Step 4: Create loan agreement
+      // Step 5: Create loan agreement
       const loanAgreement: LoanAgreement = {
         id: loanId,
         borrowerAddress: borrowerWallet.address,

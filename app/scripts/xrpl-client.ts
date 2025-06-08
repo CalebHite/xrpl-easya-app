@@ -89,7 +89,7 @@ export default class XRPLClient {
     const finalStatus = await this.checkAndUpdateFunding(wallet.address);
     const finalBalance = parseFloat(finalStatus.balance);
     
-    if (finalBalance < 10) {
+    if (finalBalance < 5) {
       console.warn(`Warning: Account ${wallet.address} may be underfunded (${finalBalance} XRP)`);
     }
   }
