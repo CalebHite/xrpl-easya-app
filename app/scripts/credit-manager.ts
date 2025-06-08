@@ -69,6 +69,8 @@ export class CreditManager {
    */
   static calculateCreditIncrease(loanAmount: number): number {
     const basePoints = Math.floor(loanAmount * this.CREDIT_POINTS_PER_XRP);
+    console.log('basePoints', basePoints);
+    console.log('Returning', Math.min(Math.max(basePoints, this.MIN_CREDIT_GAIN), this.MAX_CREDIT_GAIN));
     return Math.min(Math.max(basePoints, this.MIN_CREDIT_GAIN), this.MAX_CREDIT_GAIN);
   }
 
@@ -82,11 +84,9 @@ export class CreditManager {
     newTier: CreditRequirement;
   } {
     const oldScore = wallet.creditScore || 100;
-    const increase = this.calculateCreditIncrease(loanAmount);
+    const increase = 1; // Always increase by 1 per payment
     const newScore = oldScore + increase;
-    
     wallet.creditScore = newScore;
-    
     return {
       oldScore,
       newScore,

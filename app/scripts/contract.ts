@@ -162,6 +162,10 @@ export class AutoRepaymentLoanFactory {
         hook.isActive = false;
 
         console.log(`Loan ${loanId} repaid successfully`);
+        // Trigger credit update callback
+        if (this.onLoanRepaidCallback) {
+          this.onLoanRepaidCallback(loan);
+        }
       } else {
         throw new Error('Repayment transaction failed');
       }

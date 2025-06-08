@@ -43,7 +43,7 @@ export class AutoLoanWalletManager {
             
             console.log(`Credit updated for ${borrowerWallet.userName}:`);
             console.log(`- Previous score: ${creditUpdate.oldScore}`);
-            console.log(`- New score: ${creditUpdate.newScore} (+${creditUpdate.increase})`);
+            console.log(`- New score: ${creditUpdate.newScore} (+1 per payment)`);
             console.log(`- New tier: ${creditUpdate.newTier.description} (max loan: ${creditUpdate.newTier.maxLoanAmount} XRP)`);
           }
         }
