@@ -11,9 +11,11 @@ A simple, decentralized platform for creating and managing loans on the XRP Ledg
 ---
 ## 🎥 Demo Video
 
-<iframe src="https://www.loom.com/embed/d66592c0bc014c4fb86804a25cf30af9?sid=f894fd78-321c-403b-8e3c-5b7e2a9a24e0" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen width="100%" height="400"></iframe>
+Curious how TrustLend works? Watch our quick demo video below to see the platform in action:
 
-Click [here](https://www.loom.com/embed/d66592c0bc014c4fb86804a25cf30af9?sid=f894fd78-321c-403b-8e3c-5b7e2a9a24e0) if the video above is not displayed
+
+
+[> _Click here to watch!_](https://www.loom.com/share/d66592c0bc014c4fb86804a25cf30af9?sid=f894fd78-321c-403b-8e3c-5b7e2a9a24e0)
 
 ---
 
