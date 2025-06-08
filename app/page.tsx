@@ -122,8 +122,7 @@ export default function Home() {
           <h1 className="text-4xl font-bold mb-4 text-blue-700">Welcome to TrustLend</h1>
           <p className="text-lg text-gray-700 mb-8">A decentralized platform for creating and managing loans on the XRP Ledger.</p>
           <div className="flex justify-center space-x-4">
-            <a href="/peer-to-peer" className="px-6 py-3 bg-gray-200 rounded text-lg font-medium hover:bg-gray-300">Peer-to-Peer Loans</a>
-            <a href="/trustlend-loans" className="px-6 py-3 bg-blue-500 text-white rounded text-lg font-medium hover:bg-blue-600">TrustLend Loans</a>
+            <a href="/trustlend-loans" className="px-6 py-3 bg-blue-500 text-white rounded text-lg font-medium hover:bg-blue-600">Request a Loan</a>
           </div>
         </div>
       </main>
