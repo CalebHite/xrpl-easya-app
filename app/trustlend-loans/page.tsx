@@ -178,7 +178,7 @@ export default function TrustLendLoansPage() {
     <>
       <main className="min-h-screen p-8 bg-gray-100">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold mb-8">TrustLend Loans</h1>
+          <h1 className="text-3xl font-bold mb-8">Request a Loan</h1>
           {status && (
             <div className="mb-4 p-4 bg-blue-100 text-blue-700 rounded">
               {status}
