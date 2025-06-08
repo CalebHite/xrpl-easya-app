@@ -1,14 +1,23 @@
 import { Wallet, xrpToDrops } from 'xrpl';
 import XRPLClient from './xrpl-client';
-import { LoanAgreement, LoanCreationResult, AutoLoanHook, HookTransaction } from './types';
+import { LoanAgreement, LoanCreationResult, AutoLoanHook, HookTransaction, XRPLWallet } from './types';
+import { CreditManager, updateWalletCreditInStorage } from './credit-manager';
 
 export class AutoRepaymentLoanFactory {
   private xrplClient: XRPLClient;
   private activeLoans: Map<string, LoanAgreement> = new Map();
   private activeHooks: Map<string, AutoLoanHook> = new Map();
+  private onLoanRepaidCallback?: (loanAgreement: LoanAgreement) => void;
 
   constructor(xrplClient: XRPLClient) {
     this.xrplClient = xrplClient;
+  }
+
+  /**
+   * Set callback function to be called when a loan is successfully repaid
+   */
+  setOnLoanRepaidCallback(callback: (loanAgreement: LoanAgreement) => void) {
+    this.onLoanRepaidCallback = callback;
   }
 
   async createLoan(
@@ -195,6 +204,12 @@ export class AutoRepaymentLoanFactory {
         hook.isActive = false;
         
         console.log(`Loan ${loanId} manually repaid successfully`);
+        
+        // Trigger credit update callback
+        if (this.onLoanRepaidCallback) {
+          this.onLoanRepaidCallback(loan);
+        }
+        
         return true;
       } else {
         throw new Error('Manual repayment transaction failed');
