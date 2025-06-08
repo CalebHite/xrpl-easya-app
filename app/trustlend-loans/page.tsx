@@ -245,14 +245,14 @@ export default function TrustLendLoansPage() {
           )}
           {/* Lender Selection */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Lender Selection</h2>
+            <h2 className="text-xl font-semibold mb-4">Choose Lender</h2>
             <div className="flex flex-col md:flex-row gap-4 items-center">
               <button
                 onClick={handleFetchLender}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 disabled={loading}
               >
-                Use Bank Lender
+                Bank
               </button>
               <span className="text-gray-500">or</span>
               <button
