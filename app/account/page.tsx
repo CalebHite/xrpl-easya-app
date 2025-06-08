@@ -166,33 +166,6 @@ export default function AccountPage() {
           <div className="font-mono text-gray-700">{loading ? "..." : `${balance} XRP`}</div>
         </div>
         <button onClick={handleLogout} className="mb-6 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Log Out</button>
-        <h2 className="text-xl font-semibold mb-2 mt-4">Your Loans</h2>
-        {loading ? (
-          <div>Loading loans...</div>
-        ) : loans.length === 0 ? (
-          <div className="text-gray-500">No loans found.</div>
-        ) : (
-          <div className="space-y-3">
-            {loans.map((loan) => (
-              <div key={loan.id} className="p-3 border rounded">
-                <div><strong>Loan ID:</strong> {loan.id}</div>
-                <div><strong>Principal:</strong> {loan.principalAmount} XRP</div>
-                <div><strong>Interest Rate:</strong> {loan.interestRate}%</div>
-                <div><strong>Total Repayment:</strong> {loan.totalRepaymentAmount} XRP</div>
-                <div><strong>Status:</strong> {loan.status}</div>
-                <div><strong>Role:</strong> {loan.borrowerAddress === activeWallet.address ? "Borrower" : "Lender"}</div>
-                <div><strong>Repayment Due:</strong> {new Date(loan.executeAt * 1000).toLocaleString()}</div>
-                {loan.terms && <div><strong>Terms:</strong> {loan.terms}</div>}
-                {loan.status === 'repaid' && loan.repaidAt && (
-                  <div><strong>Repaid At:</strong> {new Date(loan.repaidAt * 1000).toLocaleString()}</div>
-                )}
-                {loan.status === 'defaulted' && (
-                  <div className="text-red-600"><strong>Status:</strong> Defaulted</div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </main>
   );

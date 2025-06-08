@@ -108,14 +108,25 @@ export default function TrustLendLoansPage() {
     if (!xrplClient) return;
     setError(null);
     try {
+      addDebugLog('Creating and funding lender wallet...');
       const wallet = await xrplClient.createAccount('DemoLender');
+      
+      // Check funding status
+      const fundingStatus = await xrplClient.checkAndUpdateFunding(wallet.address);
+      addDebugLog(`Lender wallet created: ${wallet.address}`);
+      addDebugLog(`Lender balance: ${fundingStatus.balance} XRP, funded: ${fundingStatus.isFunded}`);
+      
+      if (!fundingStatus.isFunded) {
+        addDebugLog('Warning: Lender wallet may not be properly funded');
+      }
+      
       setLenderWallet(wallet);
       setLenderAddress(wallet.address);
       setShowPeerInput(false);
-      addDebugLog(`Created lender wallet: ${wallet.address}`);
     } catch (err) {
-      setError('Failed to create lender wallet');
-      addDebugLog('Failed to create lender wallet');
+      const errorMsg = err instanceof Error ? err.message : 'Failed to create lender wallet';
+      setError(errorMsg);
+      addDebugLog(`Error: ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -148,18 +159,43 @@ export default function TrustLendLoansPage() {
         throw new Error(`Account is not funded or has insufficient XRP (balance: ${fundingResult.balance}). Please fund your wallet using the XRPL Testnet faucet.`);
       }
       addDebugLog('Step 3: Account is funded, calling createQuickDemoLoan');
+      
+      // Check borrower balance before loan
+      const borrowerBalanceBefore = await xrplClient.getAccountBalance(accountStatus.account.address);
+      addDebugLog(`Step 3a: Borrower balance before loan: ${borrowerBalanceBefore} XRP`);
+      
       // Use lenderWallet if present (bank lender), otherwise use just the address (peer-to-peer)
       const lender = lenderWallet ? lenderWallet : { address: lenderAddress, seed: '', userName: 'Lender' };
+      
+      if (!lenderWallet && lenderAddress) {
+        throw new Error('Peer-to-peer loans are not fully supported yet. Please use "Bank Lender" option.');
+      }
+      
       const loanAgreement = await createQuickDemoLoan(
         xrplClient,
         accountStatus.account,
         lender,
         parseFloat(principalAmount)
       );
+      
+      // Check borrower balance after loan
+      const borrowerBalanceAfter = await xrplClient.getAccountBalance(accountStatus.account.address);
       addDebugLog(`Step 4: Demo loan created: ${loanAgreement.id}`);
+      addDebugLog(`Step 4a: Borrower balance after loan: ${borrowerBalanceAfter} XRP`);
+      const balanceIncrease = parseFloat(borrowerBalanceAfter) - parseFloat(borrowerBalanceBefore);
+      addDebugLog(`Step 4b: Balance increase: ${balanceIncrease.toFixed(6)} XRP`);
       addDebugLog(`Step 5: Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
       setLoans(prev => [...prev, loanAgreement]);
-      setStatus('Demo loan created! Will automatically repay in 30 seconds.');
+      setStatus(`Demo loan created! Borrower received ${principalAmount} XRP. Will automatically repay in 30 seconds.`);
+      
+      // Update account status to show new balance
+      const updatedFundingResult = await xrplClient.checkAndUpdateFunding(accountStatus.account.address);
+      setAccountStatus(prev => ({
+        ...prev,
+        balance: updatedFundingResult.balance,
+        isFunded: updatedFundingResult.isFunded,
+        lastUpdated: Date.now()
+      }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to create demo loan';
       setError(errorMsg);
@@ -213,14 +249,14 @@ export default function TrustLendLoansPage() {
           )}
           {/* Lender Selection */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow">
-            <h2 className="text-xl font-semibold mb-4">Lender Selection</h2>
+            <h2 className="text-xl font-semibold mb-4">Choose Lender</h2>
             <div className="flex flex-col md:flex-row gap-4 items-center">
               <button
                 onClick={handleFetchLender}
                 className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                 disabled={loading}
               >
-                Use Bank Lender
+                Bank
               </button>
               <span className="text-gray-500">or</span>
               <button
@@ -285,21 +321,24 @@ export default function TrustLendLoansPage() {
                     placeholder="Enter interest rate (%)"
                   />
                 </div>
-                <div className="p-4 bg-gray-50 rounded">
+                                <div className="p-4 bg-gray-50 rounded">
                   <p className="text-sm text-gray-600">
                     <strong>Loan Flow:</strong>
                   </p>
                   <p className="text-sm text-gray-600">
-                    1. Borrower records loan agreement (small fee)
+                    1. Lender transfers <span className="font-semibold text-green-600">{principalAmount} XRP</span> to borrower
                   </p>
                   <p className="text-sm text-gray-600">
-                    2. Lender sends {principalAmount} XRP to borrower
+                    2. Borrower's balance increases by {principalAmount} XRP
                   </p>
                   <p className="text-sm text-gray-600">
-                    3. Borrower will repay {calculateTotalRepayment(parseFloat(principalAmount), parseFloat(interestRate))} XRP
+                    3. System creates automatic repayment hook
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    4. Borrower will auto-repay <span className="font-semibold text-red-600">{calculateTotalRepayment(parseFloat(principalAmount), parseFloat(interestRate))} XRP</span>
                   </p>
                   <p className="text-sm text-gray-600 mt-2">
-                    <strong>Required:</strong> Account needs enough XRP for fees and principal
+                    <strong>Note:</strong> In this demo, repayment happens automatically in 30 seconds
                   </p>
                 </div>
                 <div>
