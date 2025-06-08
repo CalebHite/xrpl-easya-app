@@ -2,6 +2,7 @@ import { Wallet, xrpToDrops, dropsToXrp } from 'xrpl';
 import XRPLClient from './xrpl-client';
 import { AutoRepaymentLoanFactory } from './contract';
 import { XRPLWallet, LoanAgreement } from './types';
+import { CreditManager, updateWalletCreditInStorage } from './credit-manager';
 
 export class AutoLoanWalletManager {
   private xrplClient: XRPLClient;
@@ -10,6 +11,39 @@ export class AutoLoanWalletManager {
   constructor(xrplClient: XRPLClient) {
     this.xrplClient = xrplClient;
     this.loanFactory = new AutoRepaymentLoanFactory(xrplClient);
+    
+    // Set up credit update callback
+    this.loanFactory.setOnLoanRepaidCallback((loan: LoanAgreement) => {
+      this.handleLoanRepayment(loan);
+    });
+  }
+
+  /**
+   * Handle loan repayment and update borrower's credit score
+   */
+  private handleLoanRepayment(loan: LoanAgreement): void {
+    try {
+      // Get borrower wallet from localStorage
+      if (typeof window !== 'undefined') {
+        const walletsData = localStorage.getItem('xrpl_wallets');
+        if (walletsData) {
+          const wallets: XRPLWallet[] = JSON.parse(walletsData);
+          const borrowerWallet = wallets.find(w => w.address === loan.borrowerAddress);
+          
+          if (borrowerWallet) {
+            const creditUpdate = CreditManager.updateCreditScore(borrowerWallet, loan.principalAmount);
+            updateWalletCreditInStorage(borrowerWallet.address, creditUpdate.newScore);
+            
+            console.log(`Credit updated for ${borrowerWallet.userName}:`);
+            console.log(`- Previous score: ${creditUpdate.oldScore}`);
+            console.log(`- New score: ${creditUpdate.newScore} (+${creditUpdate.increase})`);
+            console.log(`- New tier: ${creditUpdate.newTier.description} (max loan: ${creditUpdate.newTier.maxLoanAmount} XRP)`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update credit score:', error);
+    }
   }
 
   /**

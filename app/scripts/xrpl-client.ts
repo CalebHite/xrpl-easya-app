@@ -1,5 +1,6 @@
 import { Client, Wallet, dropsToXrp, xrpToDrops } from 'xrpl';
 import { XRPLWallet, FundingStatus } from './types';
+import { CreditManager } from './credit-manager';
 
 export default class XRPLClient {
   private client: Client;
@@ -35,7 +36,8 @@ export default class XRPLClient {
     const account: XRPLWallet = {
       address: wallet.address,
       seed: wallet.seed!,
-      userName: userName
+      userName: userName,
+      creditScore: 100 // Initialize with starting credit score
     };
 
     console.log(`Created account for ${userName}: ${account.address}`);

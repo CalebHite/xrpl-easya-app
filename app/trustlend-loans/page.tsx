@@ -5,7 +5,8 @@ import { Client, Wallet } from 'xrpl';
 import XRPLClient from '../scripts/xrpl-client';
 import { createLoanFactory } from '../scripts/contract';
 import { createQuickDemoLoan, AutoLoanWalletManager } from '../scripts/wallet-functions';
-import { XRPLWallet, LoanAgreement } from '../scripts/types';
+import { XRPLWallet, LoanAgreement, CreditRequirement } from '../scripts/types';
+import { CreditManager, initializeWalletCredits } from '../scripts/credit-manager';
 import { useRouter } from 'next/navigation';
 
 interface AccountStatus {
@@ -13,6 +14,8 @@ interface AccountStatus {
   balance: string;
   isFunded: boolean;
   lastUpdated: number;
+  creditScore: number;
+  creditTier: CreditRequirement;
 }
 
 export default function TrustLendLoansPage() {
@@ -26,7 +29,9 @@ export default function TrustLendLoansPage() {
     account: null,
     balance: '0',
     isFunded: false,
-    lastUpdated: 0
+    lastUpdated: 0,
+    creditScore: 100,
+    creditTier: CreditManager.getCreditTier(100)
   });
   const [principalAmount, setPrincipalAmount] = useState<string>('10');
   const [interestRate, setInterestRate] = useState<string>('5');
@@ -47,6 +52,9 @@ export default function TrustLendLoansPage() {
   };
 
   useEffect(() => {
+    // Initialize wallet credits for existing wallets
+    initializeWalletCredits();
+    
     // Redirect to login if not logged in or no active wallet
     if (typeof window !== 'undefined') {
       const wallets = localStorage.getItem('xrpl_wallets');
@@ -85,13 +93,17 @@ export default function TrustLendLoansPage() {
     const updateStatus = async () => {
       try {
         const fundingResult = await xrplClient.checkAndUpdateFunding(activeWallet.address);
+        const creditScore = activeWallet.creditScore || 100;
+        const creditTier = CreditManager.getCreditTier(creditScore);
         setAccountStatus({
           account: activeWallet,
           balance: fundingResult.balance,
           isFunded: fundingResult.isFunded,
-          lastUpdated: Date.now()
+          lastUpdated: Date.now(),
+          creditScore,
+          creditTier
         });
-        addDebugLog(`${activeWallet.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}`);
+        addDebugLog(`${activeWallet.userName} balance: ${fundingResult.balance} XRP, funded: ${fundingResult.isFunded}, credit: ${CreditManager.formatCreditDisplay(creditScore)}`);
       } catch (err) {
         addDebugLog(`Failed to update status: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
@@ -142,6 +154,18 @@ export default function TrustLendLoansPage() {
     addDebugLog(`Set peer-to-peer lender address: ${peerInput.trim()}`);
   };
 
+  const checkCreditEligibility = (amount: number): { eligible: boolean; message: string } => {
+    if (!accountStatus.account) {
+      return { eligible: false, message: 'No active account' };
+    }
+    
+    const eligibility = CreditManager.canTakeLoan(accountStatus.account, amount);
+    return {
+      eligible: eligibility.eligible,
+      message: eligibility.message
+    };
+  };
+
   const createDemoAutoLoan = async () => {
     if (!xrplClient || !accountStatus.account || !lenderAddress) return;
     setLoading(true);
@@ -149,17 +173,27 @@ export default function TrustLendLoansPage() {
     try {
       addDebugLog('Step 1: Starting demo loan creation');
       setStatus('Creating demo loan with automatic repayment...');
+      
+      // Check credit eligibility first
+      addDebugLog('Step 2: Checking credit eligibility');
+      const loanAmount = parseFloat(principalAmount);
+      const eligibility = checkCreditEligibility(loanAmount);
+      if (!eligibility.eligible) {
+        throw new Error(`Credit check failed: ${eligibility.message}`);
+      }
+      addDebugLog(`Step 2a: Credit check passed - ${eligibility.message}`);
+      
       // Check funding before proceeding
-      addDebugLog('Step 2: Checking account funding');
+      addDebugLog('Step 3: Checking account funding');
       const fundingResult = await xrplClient.checkAndUpdateFunding(accountStatus.account.address);
       if (!fundingResult.isFunded || parseFloat(fundingResult.balance) < 10) {
         throw new Error(`Account is not funded or has insufficient XRP (balance: ${fundingResult.balance}). Please fund your wallet using the XRPL Testnet faucet.`);
       }
-      addDebugLog('Step 3: Account is funded, calling createQuickDemoLoan');
+      addDebugLog('Step 4: Account is funded, calling createQuickDemoLoan');
       
       // Check borrower balance before loan
       const borrowerBalanceBefore = await xrplClient.getAccountBalance(accountStatus.account.address);
-      addDebugLog(`Step 3a: Borrower balance before loan: ${borrowerBalanceBefore} XRP`);
+      addDebugLog(`Step 4a: Borrower balance before loan: ${borrowerBalanceBefore} XRP`);
       
       // Use lenderWallet if present (bank lender), otherwise use just the address (peer-to-peer)
       const lender = lenderWallet ? lenderWallet : { address: lenderAddress, seed: '', userName: 'Lender' };
@@ -172,26 +206,30 @@ export default function TrustLendLoansPage() {
         xrplClient,
         accountStatus.account,
         lender,
-        parseFloat(principalAmount)
+        loanAmount
       );
       
       // Check borrower balance after loan
       const borrowerBalanceAfter = await xrplClient.getAccountBalance(accountStatus.account.address);
-      addDebugLog(`Step 4: Demo loan created: ${loanAgreement.id}`);
-      addDebugLog(`Step 4a: Borrower balance after loan: ${borrowerBalanceAfter} XRP`);
+      addDebugLog(`Step 5: Demo loan created: ${loanAgreement.id}`);
+      addDebugLog(`Step 5a: Borrower balance after loan: ${borrowerBalanceAfter} XRP`);
       const balanceIncrease = parseFloat(borrowerBalanceAfter) - parseFloat(borrowerBalanceBefore);
-      addDebugLog(`Step 4b: Balance increase: ${balanceIncrease.toFixed(6)} XRP`);
-      addDebugLog(`Step 5: Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
+      addDebugLog(`Step 5b: Balance increase: ${balanceIncrease.toFixed(6)} XRP`);
+      addDebugLog(`Step 6: Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
       setLoans(prev => [...prev, loanAgreement]);
-      setStatus(`Demo loan created! Borrower received ${principalAmount} XRP. Will automatically repay in 30 seconds.`);
+      setStatus(`Demo loan created! Borrower received ${loanAmount} XRP. Will automatically repay in 30 seconds.`);
       
       // Update account status to show new balance
       const updatedFundingResult = await xrplClient.checkAndUpdateFunding(accountStatus.account.address);
+      const updatedCreditScore = accountStatus.account.creditScore || 100;
+      const updatedCreditTier = CreditManager.getCreditTier(updatedCreditScore);
       setAccountStatus(prev => ({
         ...prev,
         balance: updatedFundingResult.balance,
         isFunded: updatedFundingResult.isFunded,
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
+        creditScore: updatedCreditScore,
+        creditTier: updatedCreditTier
       }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to create demo loan';
@@ -238,6 +276,12 @@ export default function TrustLendLoansPage() {
                 <p>
                   <span className="font-medium">Status:</span>
                   <span className={`ml-1 ${accountStatus.isFunded ? 'text-green-600' : 'text-red-600'}`}>{accountStatus.isFunded ? '✓ Funded' : '○ Needs Funding'}</span>
+                </p>
+                <p>
+                  <span className="font-medium">Credit Score:</span> {CreditManager.formatCreditDisplay(accountStatus.creditScore)}
+                </p>
+                <p>
+                  <span className="font-medium">Max Loan:</span> {accountStatus.creditTier.maxLoanAmount} XRP
                 </p>
                 <a href="/account" className="inline-block mt-2 px-3 py-1 text-xs bg-gray-200 rounded hover:bg-gray-300">Switch Account</a>
               </div>
@@ -292,6 +336,27 @@ export default function TrustLendLoansPage() {
           {isReady && lenderAddress && (
             <div className="mb-8 p-6 bg-white rounded-lg shadow">
               <h2 className="text-xl font-semibold mb-4">Create Loan Contract</h2>
+              {/* Credit Eligibility Check */}
+              {(() => {
+                const loanAmount = parseFloat(principalAmount) || 0;
+                const eligibility = checkCreditEligibility(loanAmount);
+                return (
+                  <div className={`mb-4 p-4 rounded-lg ${eligibility.eligible ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                    <h3 className="text-sm font-semibold mb-2">Credit Check</h3>
+                    <p className={`text-sm ${eligibility.eligible ? 'text-green-700' : 'text-red-700'}`}>
+                      {eligibility.message}
+                    </p>
+                    {!eligibility.eligible && (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-600">
+                          Complete successful loans to increase your credit score and access higher loan amounts.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+              
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Principal Amount (XRP)</label>
@@ -301,9 +366,13 @@ export default function TrustLendLoansPage() {
                     onChange={(e) => setPrincipalAmount(e.target.value)}
                     className="mt-1 p-1 block w-full rounded-md border border-gray-300 bg-gray-50 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                     min="1"
+                    max={accountStatus.creditTier.maxLoanAmount}
                     step="1"
-                    placeholder="Enter principal amount in XRP"
+                    placeholder={`Enter amount (max: ${accountStatus.creditTier.maxLoanAmount} XRP)`}
                   />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Your {accountStatus.creditTier.description} credit tier allows loans up to {accountStatus.creditTier.maxLoanAmount} XRP
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Interest Rate (%)</label>
@@ -361,7 +430,7 @@ export default function TrustLendLoansPage() {
                 </div>
                 <button
                   onClick={createDemoAutoLoan}
-                  disabled={loading || !isReady || !lenderAddress}
+                  disabled={loading || !isReady || !lenderAddress || !checkCreditEligibility(parseFloat(principalAmount) || 0).eligible}
                   className="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 disabled:bg-gray-400"
                 >
                   {loading ? 'Creating Loan...' : 'Create Loan Contract'}
@@ -394,6 +463,47 @@ export default function TrustLendLoansPage() {
               </div>
             </div>
           )}
+          
+          {/* Credit Tiers Information */}
+          <div className="p-6 mb-6 bg-white rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Credit Tiers</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Build your credit score by successfully repaying loans to unlock higher loan amounts.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {CreditManager.getAllTiers().map((tier, index) => {
+                const isCurrent = accountStatus.creditScore >= tier.minCreditScore && 
+                                (index === CreditManager.getAllTiers().length - 1 || 
+                                 accountStatus.creditScore < CreditManager.getAllTiers()[index + 1].minCreditScore);
+                return (
+                  <div key={tier.description} className={`p-4 border rounded-lg ${isCurrent ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className={`font-semibold ${isCurrent ? 'text-blue-700' : 'text-gray-700'}`}>
+                        {tier.description}
+                        {isCurrent && <span className="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded">Current</span>}
+                      </h3>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Min Score: {tier.minCreditScore}
+                    </p>
+                    <p className="text-sm font-medium text-gray-800">
+                      Max Loan: {tier.maxLoanAmount} XRP
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h3 className="font-semibold text-gray-700 mb-2">How to Build Credit</h3>
+              <ul className="text-sm text-gray-600 space-y-1">
+                <li>• Successfully repay loans on time to earn credit points</li>
+                <li>• Earn approximately 2 points per XRP repaid</li>
+                <li>• Minimum 10 points per successful loan, maximum 100 points</li>
+                <li>• Higher loan amounts = more credit points earned</li>
+              </ul>
+            </div>
+          </div>
+          
           {/* Debug Logs */}
           {debugLogs.length > 0 && (
             <details className="mb-6">
