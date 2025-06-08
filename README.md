@@ -21,9 +21,9 @@ Curious how TrustLend works? Watch our quick demo video below to see the platfor
 
 ## 📸 Screenshots
 
-| Login Page | Request a Loan | Credit Tiers | Account Dashboard |
-|:----------:|:--------------:|:------------:|:----------------:|
-| ![Login Screen](./public/screenshot1.png) | ![Request a Loan](./public/screenshot2.png) | ![Credit Tiers](./public/screenshot3.png) | ![Account Dashboard](./public/screenshot4.png) |
+| Login Page | Request a Loan | Credit Tiers | Crete Loan Contract | Account Dashboard |
+|:----------:|:--------------:|:------------:|:-------------------:|:-----------------:|
+| ![Login Screen](./public/image0.png) | ![Request a Loan](./public/image1.png) | ![Credit Tiers](./public/image2.png) | ![Create Loan Contract](./public/image3.png) | ![Account Dashboard](./public/image4.png) |
 
 ---
 
