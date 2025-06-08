@@ -87,7 +87,7 @@ export class AutoLoanWalletManager {
   }
 
   /**
-   * Create a simple loan that automatically pays back after 30 seconds (for demo purposes)
+   * Create a simple loan that automatically pays back after 10 seconds (for demo purposes)
    */
   async createDemoLoan(
     borrower: XRPLWallet,
@@ -95,11 +95,11 @@ export class AutoLoanWalletManager {
     principalAmount: number,
     interestRate: number = 10
   ): Promise<LoanAgreement> {
-    console.log(`Creating DEMO loan with 30-second auto-repayment for testing`);
+    console.log(`Creating DEMO loan with 10 second auto-repayment for testing`);
     
     const borrowerWallet = Wallet.fromSeed(borrower.seed);
     const lenderWallet = Wallet.fromSeed(lender.seed);
-    const durationInSeconds = 30; // 30 seconds for demo
+    const durationInSeconds = 10; // 10 seconds for demo
 
     const result = await this.loanFactory.createLoan(
       borrowerWallet,
@@ -107,14 +107,14 @@ export class AutoLoanWalletManager {
       principalAmount,
       interestRate,
       durationInSeconds,
-      'Demo loan - auto-repayment in 30 seconds'
+      'Demo loan - auto-repayment in 10 seconds'
     );
 
     if (!result.success || !result.agreement) {
       throw new Error(result.error || 'Failed to create demo loan');
     }
 
-    console.log(`Demo loan created! Will auto-repay in 30 seconds.`);
+    console.log(`Demo loan created! Will auto-repay in 10 seconds.`);
     return result.agreement;
   }
 

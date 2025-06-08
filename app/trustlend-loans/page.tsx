@@ -220,7 +220,7 @@ export default function TrustLendLoansPage() {
       addDebugLog(`Step 5b: Balance increase: ${balanceIncrease.toFixed(6)} XRP`);
       addDebugLog(`Step 6: Auto-repayment scheduled for: ${new Date(loanAgreement.executeAt * 1000).toLocaleString()}`);
       setLoans(prev => [...prev, loanAgreement]);
-      setStatus(`Demo loan created! Borrower received ${loanAmount} XRP. Will automatically repay in 30 seconds.`);
+      setStatus(`Demo loan created! Borrower received ${loanAmount} XRP. Will automatically repay in 10 seconds.`);
       
       // Update account status to show new balance
       const updatedFundingResult = await xrplClient.checkAndUpdateFunding(accountStatus.account.address);
@@ -407,7 +407,7 @@ export default function TrustLendLoansPage() {
                     4. Borrower will auto-repay <span className="font-semibold text-red-600">{calculateTotalRepayment(parseFloat(principalAmount), parseFloat(interestRate))} XRP</span>
                   </p>
                   <p className="text-sm text-gray-600 mt-2">
-                    <strong>Note:</strong> In this demo, repayment happens automatically in 30 seconds
+                    <strong>Note:</strong> In this demo, repayment happens automatically in 10 seconds
                   </p>
                 </div>
                 <div>
